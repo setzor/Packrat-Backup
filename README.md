@@ -19,7 +19,7 @@ Drive and many other providers.
 
 ## Features
 
-- **Simple by default** — a first-run wizard gets you to protected in four steps
+- **Simple by default** a first-run wizard gets you to protected in four steps
   (folders → destination → password → schedule).
 - **Encrypted everywhere** data is encrypted with a password stored in your
   system keyring (KWallet on Plasma) before it ever leaves the machine.
