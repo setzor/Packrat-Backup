@@ -161,7 +161,7 @@ class MainWindow(QMainWindow):
         self._refresh_overview()
         try:
             self.backend.init_repository()
-        except BackendError as exc:
+        except (BackendError, ResticProcessError) as exc:
             QMessageBox.warning(self, "Packrat Backup", f"Could not prepare repository: {exc}")
 
     # ------------------------------------------------------------------ pages
