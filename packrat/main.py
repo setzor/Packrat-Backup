@@ -36,6 +36,7 @@ from .pages import (
     StoragePage,
 )
 from .passwords import load_password, store_password
+from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
 from .tray import TrayController
@@ -254,13 +255,15 @@ class MainWindow(QMainWindow):
         self.job.start_restore(snapshot_id, target)
 
     def refresh_snapshots(self) -> None:
+        if self.backend.is_busy():
+            return
         if not self.backend.has_password():
             self._apply_password_from_store()
         if not self.backend.has_password():
             return
         try:
             self.backend.list_snapshots()
-        except BackendError as exc:
+        except (BackendError, ResticProcessError) as exc:
             log.warning("Cannot list snapshots: %s", exc)
 
     # ------------------------------------------------------------------ events
