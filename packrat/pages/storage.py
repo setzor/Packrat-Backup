@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 )
 
 from ..rclone import RcloneRunner
+from ..rclone_setup import no_remotes_help, open_rclone_config_ui, rclone_missing_help
 from ..settings import Backend
 
 
@@ -66,8 +67,11 @@ class StoragePage(QWidget):
         self._remote_combo = QComboBox()
         self._refresh_button = QPushButton("Refresh remotes")
         self._refresh_button.clicked.connect(self._on_refresh)
+        self._setup_button = QPushButton("Set up cloud storage…")
+        self._setup_button.clicked.connect(self._on_setup_clicked)
         remote_row.addWidget(self._remote_combo, 1)
         remote_row.addWidget(self._refresh_button)
+        remote_row.addWidget(self._setup_button)
         remote_layout.addLayout(remote_row)
         self._remote_path_edit = QLineEdit()
         self._remote_path_edit.setPlaceholderText("packrat-backups")
@@ -76,15 +80,10 @@ class StoragePage(QWidget):
         path_row.addWidget(QLabel("Folder on the remote:"))
         path_row.addWidget(self._remote_path_edit, 1)
         remote_layout.addLayout(path_row)
-        hint = QLabel(
-            "OneDrive/Google Drive remotes are configured with 'rclone config' "
-            "or the 'Configure rclone…' button; Packrat lists them here."
-        )
-        hint.setWordWrap(True)
-        remote_layout.addWidget(hint)
-        self._configure_button = QPushButton("Configure rclone…")
-        self._configure_button.clicked.connect(self._on_configure_rclone)
-        remote_layout.addWidget(self._configure_button)
+        self._help_label = QLabel("")
+        self._help_label.setWordWrap(True)
+        self._help_label.setStyleSheet("color: #555;")
+        remote_layout.addWidget(self._help_label)
         root.addWidget(remote_box)
         root.addStretch(1)
 
@@ -103,6 +102,7 @@ class StoragePage(QWidget):
         self._remote_combo.setEnabled(not local)
         self._remote_path_edit.setEnabled(not local)
         self._refresh_button.setEnabled(not local)
+        self._setup_button.setEnabled(not local)
         self._emit_changed()
 
     def _on_browse_local(self) -> None:
@@ -118,9 +118,18 @@ class StoragePage(QWidget):
         if not RcloneRunner.available():
             self._remote_combo.clear()
             self._remote_combo.addItem("rclone not installed")
+            self._help_label.setText(rclone_missing_help())
             return
         self._refresh_button.setEnabled(False)
         self._rclone.list_remotes()
+
+    def _on_setup_clicked(self) -> None:
+        from PyQt6.QtWidgets import QMessageBox
+
+        opened, message = open_rclone_config_ui()
+        QMessageBox.information(self, "Cloud storage setup", message)
+        if opened:
+            self._on_refresh()
 
     def _on_remotes_listed(self, remotes) -> None:
         self._refresh_button.setEnabled(True)
@@ -130,23 +139,13 @@ class StoragePage(QWidget):
             self._remote_combo.addItem(remote)
         if current in remotes:
             self._remote_combo.setCurrentText(current)
-        if not remotes:
-            self._remote_combo.addItem("No remotes configured")
-
-    def _on_configure_rclone(self) -> None:
-        import subprocess
-
-        try:
-            subprocess.Popen(["rclone", "config", "ui"])
-        except OSError:
-            from PyQt6.QtWidgets import QMessageBox
-
-            QMessageBox.warning(
-                self,
-                "rclone not found",
-                "The rclone binary could not be started. Please install rclone "
-                "and configure a OneDrive or Google Drive remote.",
+        if remotes:
+            self._help_label.setText(
+                "Found " + str(len(remotes)) + " remote(s). Pick the one to store backups on."
             )
+        else:
+            self._remote_combo.addItem("No remotes configured")
+            self._help_label.setText(no_remotes_help())
 
     # ------------------------------------------------------------------ state
     def load(self, backend_cfg) -> None:

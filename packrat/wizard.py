@@ -12,6 +12,9 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -22,6 +25,11 @@ from PyQt6.QtWidgets import (
 
 from .passwords import validate_password
 from .rclone import RcloneRunner
+from .rclone_setup import (
+    no_remotes_help,
+    open_rclone_config_ui,
+    rclone_missing_help,
+)
 from .settings import Backend
 
 
@@ -48,26 +56,50 @@ class _FoldersPage(QWizardPage):
         layout = QVBoxLayout(self)
         self.registerField("folders*", self)
         self._paths: list[str] = [os.path.expanduser("~")]
-        self._label = QLabel("\n".join(self._paths))
-        layout.addWidget(self._label)
+
+        self._list = QListWidget(self)
+        self._list.setSelectionMode(QListWidget.SelectionMode.ExtendedSelection)
+        self._list.setAlternatingRowColors(True)
+        for path in self._paths:
+            QListWidgetItem(path, self._list)
+        layout.addWidget(self._list)
+
+        buttons = QHBoxLayout()
         add_button = QPushButton("Add folder…")
         add_button.clicked.connect(self._add_folder)
-        layout.addWidget(add_button)
+        self._remove_button = QPushButton("Remove selected")
+        self._remove_button.clicked.connect(self._remove_selected)
+        self._remove_button.setEnabled(False)
+        self._list.itemSelectionChanged.connect(
+            lambda: self._remove_button.setEnabled(bool(self._list.selectedItems()))
+        )
+        buttons.addWidget(add_button)
+        buttons.addWidget(self._remove_button)
+        buttons.addStretch(1)
+        layout.addLayout(buttons)
 
     def _add_folder(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self, "Choose a folder to back up", os.path.expanduser("~")
         )
-        if directory and directory not in self._paths:
-            self._paths.append(directory)
-            self._label.setText("\n".join(self._paths))
+        if directory and directory not in self.folders():
+            QListWidgetItem(directory, self._list)
             self.completeChanged.emit()
 
+    def _remove_selected(self) -> None:
+        for item in list(self._list.selectedItems()):
+            self._list.takeItem(self._list.row(item))
+        self.completeChanged.emit()
+
     def isComplete(self) -> bool:
-        return bool(self._paths)
+        return self._list.count() > 0
 
     def folders(self) -> list:
-        return list(self._paths)
+        return [
+            self._list.item(index).text()
+            for index in range(self._list.count())
+            if self._list.item(index) is not None
+        ]
 
 
 class _DestinationPage(QWizardPage):
@@ -96,20 +128,24 @@ class _DestinationPage(QWizardPage):
         self._remote_combo = QComboBox()
         refresh = QPushButton("Refresh")
         refresh.clicked.connect(self._refresh_remotes)
+        self._setup_button = QPushButton("Set up cloud storage…")
+        self._setup_button.clicked.connect(self._on_setup_clicked)
         remote_row = QHBoxLayout()
         remote_row.addWidget(self._remote_combo, 1)
         remote_row.addWidget(refresh)
+        remote_row.addWidget(self._setup_button)
         layout.addLayout(remote_row)
         self._remote_sub = QLineEdit("packrat-backups")
         layout.addWidget(QLabel("Folder on the remote:"))
         layout.addWidget(self._remote_sub)
-        hint = QLabel(
-            "Cloud remotes are created with 'rclone config' in a terminal "
-            "(choose OneDrive or Google Drive and follow the prompts)."
-        )
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        self._help_label = QLabel("")
+        self._help_label.setWordWrap(True)
+        self._help_label.setStyleSheet("color: #555;")
+        layout.addWidget(self._help_label)
         rclone.remotes_listed.connect(self._on_remotes)
+
+    def initializePage(self) -> None:
+        self._refresh_remotes()
 
     def _browse_local(self) -> None:
         directory = QFileDialog.getExistingDirectory(
@@ -122,15 +158,29 @@ class _DestinationPage(QWizardPage):
         self._remote_combo.clear()
         if not RcloneRunner.available():
             self._remote_combo.addItem("rclone not installed")
+            self._help_label.setText(rclone_missing_help())
+            self.completeChanged.emit()
             return
+        self._help_label.setText("Looking for configured cloud remotes…")
         self._rclone.list_remotes()
+
+    def _on_setup_clicked(self) -> None:
+        opened, message = open_rclone_config_ui()
+        QMessageBox.information(self, "Cloud storage setup", message)
+        if opened:
+            self._refresh_remotes()
 
     def _on_remotes(self, remotes) -> None:
         self._remote_combo.clear()
         if remotes:
             self._remote_combo.addItems(remotes)
+            self._help_label.setText(
+                "Found " + str(len(remotes)) + " remote(s). Pick the one to store backups on."
+            )
         else:
             self._remote_combo.addItem("No remotes configured")
+            self._help_label.setText(no_remotes_help())
+        self.completeChanged.emit()
 
     def isComplete(self) -> bool:
         if self._cloud_radio.isChecked():
