@@ -2,15 +2,15 @@
 
 > [!CAUTION]
 > **This is a personal project, built for my own use.**
-> It is provided as-is, with **no warranty of any kind** — express or implied.
+> It is provided as-is, with **no warranty of any kind**, express or implied.
 > There is **no guarantee of data safety, integrity or recoverability**. Backup
 > software can fail silently, and a backup you have not tested restoring is not
-> a backup. **Use at your own risk** — always verify your restores, and keep an
+> a backup. **Use at your own risk** always verify your restores, and keep an
 > independent copy of anything irreplaceable. You alone are responsible for any
 > data loss or damage that may result from using this software.
 
 A KDE Plasma/Qt native backup application with OneDrive/Google Drive support.
-Easy to use and schedule, a bit like Déjà Dup.
+Easy to use and schedule, kinda bit like Déjà Dup, but Qt-er ;-)
 
 Packrat wraps the [restic](https://restic.net/) backup engine, so every backup is
 **incremental, deduplicated and encrypted end to end**. Cloud destinations are
@@ -21,15 +21,15 @@ Drive and many other providers.
 
 - **Simple by default** — a first-run wizard gets you to protected in four steps
   (folders → destination → password → schedule).
-- **Encrypted everywhere** — data is encrypted with a password stored in your
+- **Encrypted everywhere** data is encrypted with a password stored in your
   system keyring (KWallet on Plasma) before it ever leaves the machine.
-- **Local or cloud** — back up to any local folder, or to OneDrive/Google Drive
+- **Local or cloud** back up to any local folder, or to OneDrive/Google Drive
   via any rclone remote.
-- **Scheduled** — daily or weekly automatic backups, with a system tray agent
+- **Scheduled** daily or weekly automatic backups, with a system tray agent
   and a "Back up now" button for the impatient.
-- **Restore browser** — list snapshots (with the folders each one contains) and
+- **Restore browser** list snapshots (with the folders each one contains) and
   restore any of them to any folder.
-- **Retention policy** — Déjà Dup-like retention knobs (hourly/daily/weekly/
+- **Retention policy** Déjà Dup-like retention knobs (hourly/daily/weekly/
   monthly/yearly counts) applied via `restic forget --prune`.
 
 ## Requirements
@@ -101,7 +101,7 @@ real restic init/backup/restore roundtrip when restic is installed.
 
 ## License
 
-GPL-3.0-or-later — see [LICENSE](LICENSE).
+GPL-3.0-or-later see [LICENSE](LICENSE).
 
 ---
 
