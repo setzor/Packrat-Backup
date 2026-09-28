@@ -24,13 +24,14 @@ from .pages import (
     AboutPage,
     FoldersPage,
     OverviewPage,
+    PreferencesPage,
     RestorePage,
     SchedulePage,
     StoragePage,
 )
 from .passwords import load_password, store_password
 from .scheduler import Scheduler, next_run_time
-from .settings import ScheduleMode, Settings, write_desktop_file
+from .settings import ScheduleMode, Settings, update_autostart
 from .tray import TrayController
 
 log = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ _NAV = [
     ("Storage", "storage"),
     ("Schedule", "schedule"),
     ("Restore", "restore"),
+    ("Preferences", "preferences"),
     ("About", "about"),
 ]
 
@@ -73,6 +75,7 @@ class MainWindow(QMainWindow):
         self.storage_page = StoragePage(self.backend.rclone)
         self.schedule_page = SchedulePage()
         self.restore_page = RestorePage()
+        self.preferences_page = PreferencesPage()
         self.about_page = AboutPage()
         for page in (
             self.overview_page,
@@ -80,6 +83,7 @@ class MainWindow(QMainWindow):
             self.storage_page,
             self.schedule_page,
             self.restore_page,
+            self.preferences_page,
             self.about_page,
         ):
             self._stack.addWidget(page)
@@ -93,6 +97,7 @@ class MainWindow(QMainWindow):
         self.schedule_page.changed.connect(self._save_schedule)
         self.restore_page.refresh_requested.connect(self.refresh_snapshots)
         self.restore_page.restore_requested.connect(self.start_restore)
+        self.preferences_page.changed.connect(self._save_preferences)
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.progress.connect(self._on_progress)
@@ -118,7 +123,7 @@ class MainWindow(QMainWindow):
         else:
             self._apply_password_from_store()
         self.scheduler.start()
-        write_desktop_file()
+        update_autostart(self.settings.run_at_startup)
 
     def _apply_password_from_store(self) -> None:
         password = load_password()
@@ -158,6 +163,7 @@ class MainWindow(QMainWindow):
         self.storage_page.load(self.settings.backend_cfg)
         self.storage_page.set_remote_name(self.settings.backend_cfg.rclone_remote)
         self.schedule_page.load(self.settings.schedule)
+        self.preferences_page.load(self.settings)
         self._nav.setCurrentRow(0)
 
     def _on_nav_changed(self, row: int) -> None:
@@ -193,6 +199,13 @@ class MainWindow(QMainWindow):
         self.settings.save()
         self.scheduler.recompute()
         self._refresh_overview()
+
+    def _save_preferences(self) -> None:
+        data = self.preferences_page.save()
+        self.settings.close_to_tray = data["close_to_tray"]
+        self.settings.run_at_startup = data["run_at_startup"]
+        self.settings.save()
+        update_autostart(self.settings.run_at_startup)
 
     # ------------------------------------------------------------------ actions
     def start_backup(self) -> None:
@@ -294,7 +307,35 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
-    def _on_quit(self) -> None:
+    def closeEvent(self, event) -> None:
+        if not self.settings.close_to_tray:
+            self._quit_app(event)
+            return
+        event.ignore()
+        self.hide()
+        self.tray.show_message(
+            "Packrat Backup",
+            "Packrat keeps running in the tray. Right-click the tray icon to quit.",
+        )
+
+    def _quit_app(self, event=None) -> None:
+        if self.job.is_running():
+            answer = QMessageBox.question(
+                self,
+                "Backup in progress",
+                "A backup or restore is still running. Quit anyway?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                if event is not None:
+                    event.ignore()
+                return
+        if event is not None:
+            event.accept()
         from PyQt6.QtWidgets import QApplication
 
         QApplication.instance().quit()
+
+    def _on_quit(self) -> None:
+        self._quit_app()

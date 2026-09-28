@@ -72,6 +72,8 @@ class Settings:
     def __init__(self) -> None:
         self._settings = QSettings("Packrat", "Packrat Backup")
         self.first_run_done: bool = False
+        self.close_to_tray: bool = True
+        self.run_at_startup: bool = True
         self.folders: List[str] = []
         self.exclude_patterns: List[str] = [
             "~/.cache",
@@ -96,6 +98,8 @@ class Settings:
     def _load(self) -> None:
         s = self._settings
         self.first_run_done = to_bool(s.value("first_run_done", False, type=bool))
+        self.close_to_tray = to_bool(s.value("close_to_tray", True, type=bool))
+        self.run_at_startup = to_bool(s.value("run_at_startup", True, type=bool))
         self.folders = _to_str_list(s.value("folders", ""))
         raw_excludes = s.value("exclude_patterns", "", type=str)
         if raw_excludes:
@@ -133,6 +137,8 @@ class Settings:
     def save(self) -> None:
         s = self._settings
         s.setValue("first_run_done", self.first_run_done)
+        s.setValue("close_to_tray", self.close_to_tray)
+        s.setValue("run_at_startup", self.run_at_startup)
         s.setValue("folders", ",".join(self.folders))
         s.setValue("exclude_patterns", ",".join(self.exclude_patterns))
         s.setValue("backend_kind", self.backend_cfg.backend.value)
@@ -203,19 +209,35 @@ def default_config_path() -> Path:
     return config_dir() / "packrat.conf"
 
 
-def write_desktop_file() -> None:
-    """Install/refresh the autostart .desktop entry for the tray agent."""
+def _autostart_exec() -> str:
+    """Best-effort command line for the autostart entry."""
+    import shutil
+    import sys
+
+    exe = shutil.which("packrat")
+    if exe:
+        return f"{exe} --tray"
+    python = sys.executable or "python3"
+    return f"{python} -m packrat --tray"
+
+
+def update_autostart(run_at_startup: bool) -> bool:
+    """Install or remove the autostart .desktop entry for the tray agent."""
     autostart = (
         Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))) / "autostart"
     )
+    target = autostart / "org.packrat.Backup.desktop"
     try:
+        if not run_at_startup:
+            if target.exists():
+                target.unlink()
+            return True
         autostart.mkdir(parents=True, exist_ok=True)
-        target = autostart / "org.packrat.Backup.desktop"
         entry = (
             "[Desktop Entry]\n"
             "Type=Application\n"
             "Name=Packrat Backup\n"
-            "Exec=packrat --tray\n"
+            f"Exec={_autostart_exec()}\n"
             "Icon=org.packrat.Backup\n"
             "Terminal=false\n"
             "X-KDE-autostart-after=panel\n"
@@ -223,5 +245,6 @@ def write_desktop_file() -> None:
         )
         if not target.exists() or target.read_text() != entry:
             target.write_text(entry)
+        return True
     except OSError:
-        pass
+        return False
