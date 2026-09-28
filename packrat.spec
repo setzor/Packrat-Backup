@@ -6,8 +6,8 @@ Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google D
 License:        GPL-3.0-or-later
 URL:            https://github.com/setzor/Packrat-Backup
 Source0:        https://github.com/setzor/Packrat-Backup/archive/refs/tags/v%{version}/%{name}-%{version}.tar.gz
-
-BuildArch:      noarch
+BuildArch:      x86_64
+%define debug_package %{nil}
 
 BuildRequires:  python3-devel
 BuildRequires:  python3-setuptools
@@ -70,5 +70,5 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
-* Sun Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
+* Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
 - Initial RPM package
