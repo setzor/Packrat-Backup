@@ -19,6 +19,12 @@ from PyQt6.QtWidgets import (
 
 from . import APP_NAME
 from .backend import BackendError, BackupBackend
+from .humanize import (
+    backup_status,
+    describe_future,
+    describe_past,
+    schedule_summary,
+)
 from .jobs import BackupJob
 from .pages import (
     AboutPage,
@@ -284,21 +290,41 @@ class MainWindow(QMainWindow):
         self._refresh_overview()
 
     def _refresh_overview(self, running: bool = False) -> None:
-        last = self.settings.last_backup_time
-        try:
-            last_text = _dt.datetime.fromisoformat(last).strftime("%Y-%m-%d %H:%M") if last else ""
-        except ValueError:
-            last_text = last
+        last_dt = None
+        if self.settings.last_backup_time:
+            try:
+                last_dt = _dt.datetime.fromisoformat(self.settings.last_backup_time)
+            except ValueError:
+                last_dt = None
+        last_text = describe_past(last_dt)
         nxt = next_run_time(self.settings.schedule)
-        next_text = nxt.strftime("%Y-%m-%d %H:%M") if nxt else ""
+        next_text = describe_future(nxt) if not running else "—"
+        schedule_text = schedule_summary(
+            self.settings.schedule.mode,
+            self.settings.schedule.time,
+            self.settings.schedule.weekdays,
+        )
         try:
             destination = self.settings.backend_summary()
         except Exception:
             destination = "not configured"
-        self.overview_page.set_state(last_text, next_text, destination, running)
+        status = backup_status(
+            last_dt,
+            nxt if not running else None,
+            paused=self.scheduler.is_paused(),
+        )
+        self.overview_page.set_state(
+            last_text,
+            next_text,
+            destination,
+            running,
+            schedule=schedule_text,
+            badge_state=status["state"],
+            badge_label=status["label"],
+        )
         self.tray.set_state(
             running=running,
-            paused=False,
+            paused=self.scheduler.is_paused(),
             status_text="Backup running…" if running else "Packrat Backup",
         )
 

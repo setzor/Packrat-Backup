@@ -1,13 +1,26 @@
-"""About page: versions of Packrat, restic, rclone and licensing info."""
+"""About page: mascot, versions of Packrat, restic, rclone and license info."""
 
 from __future__ import annotations
 
+import os
 from typing import Optional
 
-from PyQt6.QtWidgets import QLabel, QTextBrowser, QVBoxLayout, QWidget
+from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import (
+    QHBoxLayout,
+    QLabel,
+    QTextBrowser,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .. import __version__
 from ..tools import find_tool
+
+
+def _mascot_path() -> str:
+    here = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(here, "..", "assets", "packrat-mascot.png")
 
 
 class AboutPage(QWidget):
@@ -20,6 +33,19 @@ class AboutPage(QWidget):
         title = QLabel("About Packrat Backup")
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         root.addWidget(title)
+
+        mascot_row = QHBoxLayout()
+        mascot_row.addStretch(1)
+        mascot = QLabel()
+        mascot.setPixmap(_pixmap(_mascot_path()))
+        mascot_row.addWidget(mascot)
+        mascot_row.addStretch(1)
+        root.addLayout(mascot_row)
+
+        tagline = QLabel("A little packrat, quietly keeping your files safe.")
+        tagline.setStyleSheet("color: #666; font-style: italic;")
+        tagline.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        root.addWidget(tagline)
 
         restic = find_tool("restic")
         rclone = find_tool("rclone")
@@ -38,3 +64,19 @@ class AboutPage(QWidget):
             '<p><a href="https://github.com/setzor/Packrat-Backup">Project page</a></p>'
         )
         root.addWidget(info, 1)
+
+
+def _pixmap(path: str):
+    from PyQt6.QtGui import QPixmap
+
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        pixmap = QPixmap(128, 128)
+        pixmap.fill()
+    scaled = pixmap.scaled(
+        128,
+        128,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    return scaled
