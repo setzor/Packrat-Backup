@@ -19,7 +19,7 @@ def test_main_window_construction(qapp, tmp_path, monkeypatch):
     window = MainWindow(settings)
     try:
         assert window.windowTitle() == "Packrat Backup"
-        assert window._stack.count() == 6
+        assert window._stack.count() == 7
         window.overview_page.set_state("2026-09-28 12:00", "", "somewhere", False)
         window.overview_page.set_progress(50, "Backing up")
         window.overview_page.clear_progress()

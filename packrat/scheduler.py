@@ -78,6 +78,9 @@ class Scheduler(QObject):
     def set_paused(self, paused: bool) -> None:
         self._paused = bool(paused)
 
+    def is_paused(self) -> bool:
+        return self._paused
+
     def recompute(self) -> None:
         self._next_run = next_run_time(self._config)
         if self._next_run:

@@ -1,11 +1,13 @@
-"""Overview page: current status, last/next backup, big action buttons."""
+"""Overview page: friendly status, last/next backup, big action buttons."""
 
 from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -15,6 +17,42 @@ from PyQt6.QtWidgets import (
 )
 
 from ..widgets import StatusBadge
+
+
+def _overview_mascot():
+    import os
+
+    from PyQt6.QtGui import QPixmap
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "..", "assets", "packrat-overview.svg")
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return QPixmap()
+    return pixmap.scaled(
+        96,
+        96,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+
+
+class _StatTile(QFrame):
+    def __init__(self, caption: str) -> None:
+        super().__init__()
+        self.setFrameShape(QFrame.Shape.StyledPanel)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 12, 16, 12)
+        self._caption = QLabel(caption)
+        self._caption.setStyleSheet("color: #888; font-size: 12px;")
+        self._value = QLabel("—")
+        self._value.setStyleSheet("font-size: 17px; font-weight: 600;")
+        self._value.setWordWrap(True)
+        layout.addWidget(self._caption)
+        layout.addWidget(self._value)
+
+    def set_value(self, text: str) -> None:
+        self._value.setText(text or "—")
 
 
 class OverviewPage(QWidget):
@@ -28,26 +66,37 @@ class OverviewPage(QWidget):
         root.setSpacing(16)
 
         header = QHBoxLayout()
+        title_block = QVBoxLayout()
         self._title = QLabel("Your data is protected")
         self._title.setStyleSheet("font-size: 22px; font-weight: 600;")
         self._badge = StatusBadge("Not backed up yet", "warn")
-        header.addWidget(self._title)
+        title_block.addWidget(self._title)
+        title_block.addWidget(self._badge)
+        header.addLayout(title_block)
         header.addStretch(1)
-        header.addWidget(self._badge)
+        mascot = QLabel()
+        mascot_pixmap = _overview_mascot()
+        if not mascot_pixmap.isNull():
+            mascot.setPixmap(mascot_pixmap)
+        header.addWidget(mascot)
         root.addLayout(header)
 
         self._status_label = QLabel("")
         self._status_label.setWordWrap(True)
+        self._status_label.setStyleSheet("color: #666;")
         root.addWidget(self._status_label)
 
         info_box = QGroupBox("Backup summary")
-        info_layout = QHBoxLayout(info_box)
-        self._last_label = QLabel("Last backup: —")
-        self._next_label = QLabel("Next backup: —")
-        self._dest_label = QLabel("Destination: —")
-        for label in (self._last_label, self._next_label, self._dest_label):
-            label.setWordWrap(True)
-            info_layout.addWidget(label)
+        grid = QGridLayout(info_box)
+        grid.setContentsMargins(12, 12, 12, 12)
+        self._last_tile = _StatTile("Last backup")
+        self._next_tile = _StatTile("Next backup")
+        self._schedule_tile = _StatTile("Schedule")
+        self._dest_tile = _StatTile("Destination")
+        grid.addWidget(self._last_tile, 0, 0)
+        grid.addWidget(self._next_tile, 0, 1)
+        grid.addWidget(self._schedule_tile, 1, 0)
+        grid.addWidget(self._dest_tile, 1, 1)
         root.addWidget(info_box)
 
         self._progress_text = QLabel("")
@@ -75,10 +124,16 @@ class OverviewPage(QWidget):
         next_backup: str,
         destination: str,
         running: bool,
+        schedule: str = "",
+        badge_state: str = "warn",
+        badge_label: str = "Not backed up yet",
     ) -> None:
-        self._last_label.setText(f"Last backup: {last_backup or '—'}")
-        self._next_label.setText(f"Next backup: {next_backup or '—'}")
-        self._dest_label.setText(f"Destination: {destination}")
+        self._last_tile.set_value(last_backup)
+        self._next_tile.set_value(next_backup)
+        self._schedule_tile.set_value(schedule or "—")
+        self._dest_tile.set_value(destination)
+        self._badge.set_state(badge_state)
+        self._badge.setText(badge_label)
         if running:
             self._title.setText("Backup in progress…")
             self._badge.set_state("ok")
@@ -86,8 +141,6 @@ class OverviewPage(QWidget):
             self._backup_button.setEnabled(False)
         else:
             self._title.setText("Your data is protected")
-            self._badge.set_state("ok" if last_backup else "warn")
-            self._badge.setText("Up to date" if last_backup else "Not backed up yet")
             self._backup_button.setEnabled(True)
 
     def set_progress(self, percent: int, message: str) -> None:

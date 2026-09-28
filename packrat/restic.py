@@ -125,9 +125,6 @@ class ResticRunner(QObject):
         if self._operation == "backup":
             for line in _json_lines(self._buffer):
                 self._handle_backup_message(line)
-        elif self._operation == "snapshots":
-            for line in _json_lines(self._buffer):
-                self._handle_snapshots_message(line)
 
     def _on_stderr(self, proc: QProcess) -> None:
         data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")

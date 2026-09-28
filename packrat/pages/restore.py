@@ -20,7 +20,27 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..widgets import human_size
+from ..humanize import format_snapshot_time
+
+
+def _folders_text(snapshot: dict) -> str:
+    """Human summary of what a snapshot contains."""
+    paths = snapshot.get("paths") or []
+    if not paths:
+        return "unknown"
+    home = os.path.expanduser("~")
+    shortened = []
+    for path in paths[:4]:
+        if path == home:
+            shortened.append("~")
+        elif path.startswith(home + "/"):
+            shortened.append("~" + path[len(home) :])
+        else:
+            shortened.append(path)
+    text = ", ".join(shortened)
+    if len(paths) > 4:
+        text += f" (+{len(paths) - 4} more)"
+    return text
 
 
 class RestorePage(QWidget):
@@ -37,19 +57,29 @@ class RestorePage(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         root.addWidget(title)
 
+        hint = QLabel(
+            "Each snapshot is a full copy of your files at that moment — "
+            "pick one and choose where to put it."
+        )
+        hint.setWordWrap(True)
+        hint.setStyleSheet("color: #666;")
+        root.addWidget(hint)
+
         snapshots_box = QGroupBox("Available snapshots")
         snapshots_layout = QVBoxLayout(snapshots_box)
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["ID", "Date", "Host", "Size"])
+        self._table = QTableWidget(0, 3)
+        self._table.setHorizontalHeaderLabels(["When", "Folders backed up", "ID"])
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self._table.setWordWrap(False)
         snapshots_layout.addWidget(self._table)
         self._refresh_button = QPushButton("Refresh")
-        self._refresh_button.clicked.connect(self._on_refresh)
+        self._refresh_button.clicked.connect(self.refresh_requested.emit)
         refresh_row = QHBoxLayout()
         refresh_row.addWidget(self._refresh_button)
         refresh_row.addStretch(1)
@@ -72,9 +102,6 @@ class RestorePage(QWidget):
         root.addWidget(self._restore_button)
         root.addStretch(1)
 
-    def _on_refresh(self) -> None:
-        self.refresh_requested.emit()
-
     def _on_browse(self) -> None:
         directory = QFileDialog.getExistingDirectory(
             self,
@@ -88,7 +115,7 @@ class RestorePage(QWidget):
         row = self._table.currentRow()
         if row < 0:
             return
-        item = self._table.item(row, 0)
+        item = self._table.item(row, 2)
         if item is None:
             return
         self.restore_requested.emit(item.text(), self._target_edit.text().strip())
@@ -97,17 +124,15 @@ class RestorePage(QWidget):
     def set_snapshots(self, snapshots) -> None:
         self._table.setRowCount(0)
         for snapshot in snapshots:
+            if not isinstance(snapshot, dict):
+                continue
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(row, 0, QTableWidgetItem(str(snapshot.get("short_id", ""))))
-            self._table.setItem(row, 1, QTableWidgetItem(str(snapshot.get("time", ""))))
-            self._table.setItem(row, 2, QTableWidgetItem(str(snapshot.get("hostname", ""))))
-            size = sum(
-                info.get("size", 0)
-                for info in snapshot.get("summary", {}).values()
-                if isinstance(info, dict)
+            self._table.setItem(
+                row, 0, QTableWidgetItem(format_snapshot_time(str(snapshot.get("time", ""))))
             )
-            self._table.setItem(row, 3, QTableWidgetItem(human_size(size)))
+            self._table.setItem(row, 1, QTableWidgetItem(_folders_text(snapshot)))
+            self._table.setItem(row, 2, QTableWidgetItem(str(snapshot.get("short_id", ""))))
 
     def set_enabled_state(self, running: bool) -> None:
         self._restore_button.setEnabled(not running)
