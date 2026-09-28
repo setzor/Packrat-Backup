@@ -20,9 +20,7 @@ jobs:
           dnf -y install dnf-plugins-core git python3-devel python3-pip \
             python3-setuptools desktop-file-utils libappstream-glib rpm-build
       - name: Checkout
-        run: |
-          git clone --depth 1 --branch "${GITHUB_REF_NAME}" \
-            "https://github.com/${GITHUB_REPOSITORY}.git" .
+        uses: actions/checkout@v4
       - name: Build source tarball
         run: |
           mkdir -p ~/rpmbuild/SOURCES
