@@ -2,6 +2,8 @@ Name:           packrat
 Version:        0.1.0
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
+Packager:       setzor <setzor@users.noreply.github.com>
+Group:          Applications/System
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/setzor/Packrat-Backup
@@ -15,7 +17,7 @@ BuildRequires:  python3-setuptools
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
 
-Requires:       python3-qt6
+Requires:       python3-pyqt6
 Requires:       restic
 Recommends:     rclone
 Recommends:     python3-keyring

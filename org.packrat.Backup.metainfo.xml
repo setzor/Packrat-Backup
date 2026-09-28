@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>org.packrat.Backup</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-3.0+</project_license>
+  <project_license>GPL-3.0-or-later</project_license>
   <name>Packrat Backup</name>
   <summary>Simple, encrypted backups for KDE Plasma with OneDrive and Google Drive support</summary>
   <description>
