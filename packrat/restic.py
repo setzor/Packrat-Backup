@@ -1,0 +1,294 @@
+"""Async wrapper around the restic backup program.
+
+Runs restic in a :class:`QProcess` so the UI stays responsive, emitting
+progress messages parsed from restic's ``--json`` status output. The
+repository password is handed to restic via the ``RESTIC_PASSWORD``
+environment variable of the child process, never via argv or a temp file.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, List, Optional, Tuple
+
+from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
+
+from .tools import restic_path
+
+
+class ResticProcessError(RuntimeError):
+    def __init__(self, message: str, exit_code: int = 0, stderr: str = "") -> None:
+        super().__init__(message)
+        self.exit_code = exit_code
+        self.stderr = stderr
+
+
+class ResticRunner(QObject):
+    """Thin async wrapper over the restic CLI."""
+
+    finished = pyqtSignal(bool, str)  # success, message
+    progress = pyqtSignal(int, str)  # percent, status text
+    snapshots_listed = pyqtSignal(list)  # parsed restic snapshots
+
+    def __init__(self, parent: Optional[QObject] = None) -> None:
+        super().__init__(parent)
+        self._process: Optional[QProcess] = None
+        self._operation = ""
+        self._buffer = ""
+
+    # ------------------------------------------------------------------ helpers
+    @staticmethod
+    def available() -> bool:
+        return restic_path() is not None
+
+    @staticmethod
+    def binary() -> Optional[str]:
+        return restic_path()
+
+    def is_running(self) -> bool:
+        return (
+            self._process is not None and self._process.state() != QProcess.ProcessState.NotRunning
+        )
+
+    def _launch(
+        self,
+        repo: str,
+        password: str,
+        args: List[str],
+        operation: str,
+        working_dir: Optional[str] = None,
+    ) -> None:
+        if self.is_running():
+            raise ResticProcessError("A restic operation is already running")
+        binary = restic_path()
+        if not binary:
+            raise ResticProcessError("restic binary not found on this system")
+        proc = QProcess(self)
+        proc.setProgram(binary)
+        proc.setArguments(["--repo", repo] + args)
+        env = QProcessEnvironment.systemEnvironment()
+        if password:
+            env.insert("RESTIC_PASSWORD", password)
+        else:
+            env.remove("RESTIC_PASSWORD")
+        proc.setProcessEnvironment(env)
+        if working_dir:
+            proc.setWorkingDirectory(working_dir)
+        proc.readyReadStandardOutput.connect(lambda: self._on_stdout(proc))
+        proc.readyReadStandardError.connect(lambda: self._on_stderr(proc))
+        proc.finished.connect(self._on_finished)
+        self._process = proc
+        self._operation = operation
+        self._buffer = ""
+        proc.start()
+
+    # ------------------------------------------------------------------ operations
+    def init(self, repo: str, password: str) -> None:
+        self._launch(repo, password, ["init"], "init")
+
+    def backup(
+        self,
+        repo: str,
+        password: str,
+        folders: List[str],
+        excludes: List[str],
+    ) -> None:
+        args = ["backup", "--json"]
+        for pattern in excludes:
+            args += ["--exclude", os.path.expanduser(pattern)]
+        for folder in folders:
+            args.append(os.path.expanduser(folder))
+        self._launch(repo, password, args, "backup")
+
+    def snapshots(self, repo: str, password: str) -> None:
+        self._launch(repo, password, ["snapshots", "--json"], "snapshots")
+
+    def restore(self, repo: str, password: str, snapshot_id: str, target: str) -> None:
+        self._launch(
+            repo,
+            password,
+            ["restore", snapshot_id, "--target", target],
+            "restore",
+        )
+
+    def prune(self, repo: str, password: str, keep_args: List[str]) -> None:
+        self._launch(repo, password, ["forget", "--prune"] + keep_args, "prune")
+
+    def check(self, repo: str, password: str) -> None:
+        self._launch(repo, password, ["check"], "check")
+
+    # ------------------------------------------------------------------ plumbing
+    def _on_stdout(self, proc: QProcess) -> None:
+        data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
+        self._buffer += data
+        if self._operation == "backup":
+            for line in _json_lines(self._buffer):
+                self._handle_backup_message(line)
+        elif self._operation == "snapshots":
+            for line in _json_lines(self._buffer):
+                self._handle_snapshots_message(line)
+
+    def _on_stderr(self, proc: QProcess) -> None:
+        data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
+        for line in data.splitlines():
+            stripped = line.strip()
+            if stripped:
+                self.progress.emit(-1, stripped)
+
+    def _handle_backup_message(self, msg: Any) -> None:
+        if not isinstance(msg, dict):
+            return
+        kind = msg.get("message_type")
+        if kind == "status":
+            percent = int(float(msg.get("percent_done") or 0) * 100)
+            self.progress.emit(percent, _status_text(msg))
+        elif kind == "summary":
+            files = msg.get("total_files_processed", 0)
+            size = msg.get("data_added", 0)
+            self.progress.emit(
+                100,
+                f"Backed up {files} files ({_human_size(size)} new data).",
+            )
+
+    def _on_finished(self, exit_code: int, exit_status) -> None:
+        proc = self._process
+        self._process = None
+        stdout = self._buffer
+        stderr = ""
+        if proc is not None:
+            stderr = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
+            proc.deleteLater()
+        success = exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
+        if self._operation == "snapshots" and success:
+            self.snapshots_listed.emit(_parse_snapshots(stdout))
+        message = _result_message(self._operation, success, exit_code, stderr)
+        self._buffer = ""
+        self.finished.emit(success, message)
+
+    def _on_error(self, proc: QProcess) -> None:
+        self._process = None
+        error = proc.error()
+        self.finished.emit(False, f"restic process error: {error}")
+
+
+def _json_lines(buffer: str):
+    for line in buffer.splitlines():
+        line = line.strip()
+        if not line.startswith("{") and not line.startswith("["):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        yield parsed
+
+
+def _status_text(msg: dict) -> str:
+    activity = msg.get("current_activity") or msg.get("action") or ""
+    files = msg.get("files_done", 0)
+    total = msg.get("total_files", 0)
+    if activity:
+        suffix = f" ({files}/{total} files)" if total else ""
+        return f"{activity}{suffix}"
+    return "Working..."
+
+
+def _human_size(num: float) -> str:
+    value = float(num)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(value) < 1024:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} PiB"
+
+
+def _parse_snapshots(stdout: str) -> List[dict]:
+    stripped = stdout.strip()
+    if not stripped:
+        return []
+    try:
+        parsed = json.loads(stripped)
+    except json.JSONDecodeError:
+        for line in stripped.splitlines():
+            line = line.strip()
+            if not (line.startswith("{") or line.startswith("[")):
+                continue
+            try:
+                parsed = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, list):
+                return parsed
+            if isinstance(parsed, dict) and parsed.get("message_type") == "snapshots_list":
+                return parsed.get("snapshots", [])
+        return []
+    if isinstance(parsed, list):
+        return parsed
+    if isinstance(parsed, dict) and parsed.get("message_type") == "snapshots_list":
+        return parsed.get("snapshots", [])
+    return []
+
+
+def _result_message(operation: str, success: bool, exit_code: int, stderr: str) -> str:
+    generic = {
+        "init": "Repository initialised",
+        "backup": "Backup complete",
+        "snapshots": "Snapshots listed",
+        "restore": "Restore complete",
+        "prune": "Cleanup complete",
+        "check": "Integrity check passed",
+    }
+    if success:
+        return generic.get(operation, "Operation complete")
+    detail = _clean_stderr(stderr)
+    base = f"{generic.get(operation, 'Operation')} failed (exit {exit_code})"
+    return f"{base}: {detail}" if detail else base
+
+
+def _clean_stderr(stderr: str) -> str:
+    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    for keyword in ("wrong password", "password", "does not exist", "unable to open"):
+        for line in lines:
+            if keyword in line.lower():
+                return line
+    return lines[-1] if lines else ""
+
+
+class Restic:
+    """Convenience synchronous helpers used by tests and background workers."""
+
+    @staticmethod
+    def run(args: List[str], timeout: int = 300) -> Tuple[bool, str, str]:
+        import subprocess
+
+        binary = restic_path() or "restic"
+        completed = subprocess.run(
+            [str(a) for a in args],
+            executable=binary,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        return completed.returncode == 0, completed.stdout, completed.stderr
+
+
+def keep_args_from_settings(settings) -> List[str]:
+    """Build the restic forget --keep-* argument list from settings."""
+    args: List[str] = []
+    mapping = (
+        ("keep_hourly", "--keep-hourly"),
+        ("keep_daily", "--keep-daily"),
+        ("keep_weekly", "--keep-weekly"),
+        ("keep_monthly", "--keep-monthly"),
+        ("keep_yearly", "--keep-yearly"),
+    )
+    for attr, flag in mapping:
+        value = int(getattr(settings, attr, 0) or 0)
+        if value > 0:
+            args += [flag, str(value)]
+    within = str(getattr(settings, "keep_within", "") or "").strip()
+    if within:
+        args += ["--keep-within", within]
+    return args
