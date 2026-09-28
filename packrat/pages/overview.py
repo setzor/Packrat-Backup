@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFrame,
     QGridLayout,
@@ -17,6 +17,24 @@ from PyQt6.QtWidgets import (
 )
 
 from ..widgets import StatusBadge
+
+
+def _overview_mascot():
+    import os
+
+    from PyQt6.QtGui import QPixmap
+
+    here = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(here, "..", "assets", "packrat-overview.svg")
+    pixmap = QPixmap(path)
+    if pixmap.isNull():
+        return QPixmap()
+    return pixmap.scaled(
+        96,
+        96,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
 
 
 class _StatTile(QFrame):
@@ -48,12 +66,19 @@ class OverviewPage(QWidget):
         root.setSpacing(16)
 
         header = QHBoxLayout()
+        title_block = QVBoxLayout()
         self._title = QLabel("Your data is protected")
         self._title.setStyleSheet("font-size: 22px; font-weight: 600;")
         self._badge = StatusBadge("Not backed up yet", "warn")
-        header.addWidget(self._title)
+        title_block.addWidget(self._title)
+        title_block.addWidget(self._badge)
+        header.addLayout(title_block)
         header.addStretch(1)
-        header.addWidget(self._badge)
+        mascot = QLabel()
+        mascot_pixmap = _overview_mascot()
+        if not mascot_pixmap.isNull():
+            mascot.setPixmap(mascot_pixmap)
+        header.addWidget(mascot)
         root.addLayout(header)
 
         self._status_label = QLabel("")

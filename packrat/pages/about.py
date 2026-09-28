@@ -20,7 +20,7 @@ from ..tools import find_tool
 
 def _mascot_path() -> str:
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(here, "..", "assets", "packrat-mascot.png")
+    return os.path.join(here, "..", "assets", "packrat-mascot.svg")
 
 
 class AboutPage(QWidget):
