@@ -39,7 +39,7 @@ packrat = "packrat.__main__:main"
 include = ["packrat*"]
 
 [tool.setuptools.package-data]
-packrat = ["py.typed"]
+packrat = ["py.typed", "assets/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
