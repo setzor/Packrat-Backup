@@ -53,12 +53,8 @@ def test_refresh_without_restic_binary_does_not_raise(window, monkeypatch):
 
 def test_refresh_skipped_while_backend_busy(window, monkeypatch):
     called = []
-    monkeypatch.setattr(
-        BackupBackend, "list_snapshots", lambda self: called.append(True)
-    )
-    monkeypatch.setattr(
-        BackupBackend, "is_busy", lambda self: True
-    )
+    monkeypatch.setattr(BackupBackend, "list_snapshots", lambda self: called.append(True))
+    monkeypatch.setattr(BackupBackend, "is_busy", lambda self: True)
 
     window.refresh_snapshots()
     window.restore_page._refresh_button.click()
