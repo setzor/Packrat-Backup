@@ -29,7 +29,9 @@ def main(argv=None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+    from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import QApplication
+    from importlib.resources import files
 
     from . import APP_ID, APP_NAME, __version__
     from .main import MainWindow
@@ -39,6 +41,9 @@ def main(argv=None) -> int:
     app.setApplicationName(APP_NAME)
     app.setApplicationVersion(__version__)
     app.setDesktopFileName(APP_ID)
+    app.setWindowIcon(
+        QIcon(str(files("packrat").joinpath("assets", "packrat-mascot.svg")))
+    )
     app.setQuitOnLastWindowClosed(False)
 
     settings = Settings()
