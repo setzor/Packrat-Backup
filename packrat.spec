@@ -10,6 +10,7 @@ BuildArch:      x86_64
 %define debug_package %{nil}
 
 BuildRequires:  python3-devel
+BuildRequires:  python3-pip
 BuildRequires:  python3-setuptools
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
@@ -34,11 +35,11 @@ a system tray agent keeps an eye on things in the background.
 
 
 %build
-%py3_build
+%pyproject_wheel
 
 
 %install
-%py3_install
+%pyproject_install
 
 # Desktop file
 install -D -m 0644 org.packrat.Backup.desktop \
