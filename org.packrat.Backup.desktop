@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=Packrat Backup
+GenericName=Backup Tool
+Comment=Keep your files safe with encrypted backups to local folders, OneDrive or Google Drive
+Exec=packrat
+Icon=org.packrat.Backup
+Terminal=false
+Categories=System;FileTools;Archiving;Backup;
+Keywords=backup;restic;rclone;onedrive;google;drive;plasma;kde;
+SingleMainWindow=true
+X-KDE-StartupNotify=true
+DBusActivatable=false
+StartupWMClass=packrat

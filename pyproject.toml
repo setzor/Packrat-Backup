@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "packrat"
+version = "0.1.0"
+description = "A KDE Plasma/Qt native backup application with OneDrive/Google Drive support"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Packrat Backup contributors" }]
+keywords = ["backup", "kde", "plasma", "restic", "rclone", "onedrive", "google-drive"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Archiving :: Backup",
+]
+dependencies = [
+    "PyQt6>=6.5",
+]
+
+[project.optional-dependencies]
+keyring = ["keyring"]
+dev = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/setzor/Packrat-Backup"
+Issues = "https://github.com/setzor/Packrat-Backup/issues"
+
+[project.gui-scripts]
+packrat = "packrat.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["packrat*"]
+
+[tool.setuptools.package-data]
+packrat = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
