@@ -2,19 +2,22 @@ Name:           packrat
 Version:        0.1.0
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
+Packager:       setzor <setzor@users.noreply.github.com>
+Group:          Applications/System
 
 License:        GPL-3.0-or-later
 URL:            https://github.com/setzor/Packrat-Backup
 Source0:        https://github.com/setzor/Packrat-Backup/archive/refs/tags/v%{version}/%{name}-%{version}.tar.gz
-
-BuildArch:      noarch
+BuildArch:      x86_64
+%define debug_package %{nil}
 
 BuildRequires:  python3-devel
+BuildRequires:  python3-pip
 BuildRequires:  python3-setuptools
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
 
-Requires:       python3-qt6
+Requires:       python3-pyqt6
 Requires:       restic
 Recommends:     rclone
 Recommends:     python3-keyring
@@ -34,11 +37,11 @@ a system tray agent keeps an eye on things in the background.
 
 
 %build
-%py3_build
+%pyproject_wheel
 
 
 %install
-%py3_install
+%pyproject_install
 
 # Desktop file
 install -D -m 0644 org.packrat.Backup.desktop \
@@ -70,5 +73,5 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
-* Sun Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
+* Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
 - Initial RPM package

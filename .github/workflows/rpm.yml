@@ -1,0 +1,44 @@
+name: RPM
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fedora-rpm:
+    name: Fedora 44 x86_64
+    runs-on: ubuntu-latest
+    container: fedora:44
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf -y install dnf-plugins-core git python3-devel python3-pip \
+            python3-setuptools desktop-file-utils libappstream-glib \
+            rpm-build rpmbuild-fedora-macros || \
+          dnf -y install dnf-plugins-core git python3-devel python3-pip \
+            python3-setuptools desktop-file-utils libappstream-glib rpm-build
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build source tarball
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir -p ~/rpmbuild/SOURCES
+          tar czf ~/rpmbuild/SOURCES/packrat-0.1.0.tar.gz \
+            --transform 's,^,Packrat-Backup-0.1.0/,' \
+            $(git ls-files)
+      - name: Build RPM
+        run: |
+          mkdir -p ~/rpmbuild/SPECS
+          cp packrat.spec ~/rpmbuild/SPECS/
+          rpmbuild -bb --target x86_64 ~/rpmbuild/SPECS/packrat.spec
+      - name: Collect artifacts
+        run: |
+          mkdir -p artifacts
+          cp ~/rpmbuild/RPMS/x86_64/*.rpm artifacts/
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packrat-fedora44-x86_64
+          path: artifacts/
