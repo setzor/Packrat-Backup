@@ -1,5 +1,14 @@
 # Packrat Backup
 
+> [!CAUTION]
+> **This is a personal project, built for my own use.**
+> It is provided as-is, with **no warranty of any kind** — express or implied.
+> There is **no guarantee of data safety, integrity or recoverability**. Backup
+> software can fail silently, and a backup you have not tested restoring is not
+> a backup. **Use at your own risk** — always verify your restores, and keep an
+> independent copy of anything irreplaceable. You alone are responsible for any
+> data loss or damage that may result from using this software.
+
 A KDE Plasma/Qt native backup application with OneDrive/Google Drive support.
 Easy to use and schedule, a bit like Déjà Dup.
 
@@ -18,7 +27,8 @@ Drive and many other providers.
   via any rclone remote.
 - **Scheduled** — daily or weekly automatic backups, with a system tray agent
   and a "Back up now" button for the impatient.
-- **Restore browser** — list snapshots and restore any of them to any folder.
+- **Restore browser** — list snapshots (with the folders each one contains) and
+  restore any of them to any folder.
 - **Retention policy** — Déjà Dup-like retention knobs (hourly/daily/weekly/
   monthly/yearly counts) applied via `restic forget --prune`.
 
@@ -27,6 +37,12 @@ Drive and many other providers.
 - Python 3.9+ with PyQt6 (`pip install PyQt6`)
 - `restic` (the backup engine)
 - `rclone` (only needed for cloud destinations)
+
+On Fedora:
+
+```bash
+sudo dnf install restic rclone python3-pyqt6 python3-keyring
+```
 
 On Debian/Ubuntu or KDE neon:
 
@@ -47,18 +63,19 @@ packrat --tray     # start minimised in the system tray
 Packrat relies on rclone remotes for cloud storage. Create one once:
 
 ```bash
-rclone config          # choose "onedrive" or "drive" and follow the prompts
+rclone config       # choose "onedrive" or "drive" and follow the prompts
 ```
 
-The remote then shows up in Packrat under **Storage → Cloud storage**.
+The remote then shows up in Packrat under **Storage → Cloud storage** (the
+"Set up cloud storage…" button opens this wizard in a terminal for you).
 
 ## How it works
 
-| Layer      | Role                                                            |
-| ---------- | --------------------------------------------------------------- |
-| `restic`   | Snapshots, deduplication, encryption, restore, prune            |
-| `rclone`   | OneDrive/Google Drive (and 40+ other) storage backends           |
-| `Packrat`  | Qt UI, first-run wizard, scheduler, tray agent, keyring storage |
+| Layer     | Role                                                   |
+| --------- | ------------------------------------------------------ |
+| `restic`  | Snapshots, deduplication, encryption, restore, prune  |
+| `rclone`  | OneDrive/Google Drive (and 40+ other) storage backends |
+| `Packrat` | Qt UI, first-run wizard, scheduler, tray agent, keyring storage |
 
 Backups run as `restic backup --json` in a `QProcess`; progress is parsed from
 restic's JSON status stream and shown live in the window and tray tooltip. The
@@ -80,8 +97,16 @@ real restic init/backup/restore roundtrip when restic is installed.
 
 - Desktop entry: `org.packrat.Backup.desktop`
 - AppStream metadata: `org.packrat.Backup.metainfo.xml`
-- Icon: `icons/128x128/apps/org.packrat.Backup.png` (placeholder art for now)
+- Icons: `icons/` (scalable SVG + 128px PNG)
 
 ## License
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  <img src="docs/mascot-options/option-1-kawaii.svg" width="160" alt="Pakkie the Packrat, the Packrat Backup mascot"/>
+  <br/>
+  <em>Pakkie the Packrat says: keep your treasures safe. 🧺</em>
+</p>
