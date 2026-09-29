@@ -3,25 +3,24 @@
 from __future__ import annotations
 
 import logging
+from importlib.resources import files
 from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon, QPixmap
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+
+from . import APP_ID
 
 log = logging.getLogger(__name__)
 
 
 def _default_icon() -> QIcon:
-    pixmap = QPixmap(64, 64)
-    pixmap.fill()
-    from PyQt6.QtGui import QColor, QPainter
-
-    painter = QPainter(pixmap)
-    painter.setBrush(QColor("#1f6feb"))
-    painter.drawRect(0, 0, 64, 64)
-    painter.end()
-    return QIcon(pixmap)
+    """The Packrat mascot: themed icon first, bundled SVG as fallback."""
+    icon = QIcon.fromTheme(APP_ID)
+    if not icon.isNull():
+        return icon
+    return QIcon(str(files("packrat").joinpath("assets", "packrat-mascot.svg")))
 
 
 class TrayController(QObject):
