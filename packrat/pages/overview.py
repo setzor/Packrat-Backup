@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -102,6 +103,12 @@ class OverviewPage(QWidget):
         self._progress_text = QLabel("")
         self._progress_text.setVisible(False)
         self._progress_text.setWordWrap(True)
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setTextVisible(False)
+        self._progress_bar.setFixedHeight(6)
+        self._progress_bar.setVisible(False)
+        root.addWidget(self._progress_bar)
         root.addWidget(self._progress_text)
 
         actions = QHBoxLayout()
@@ -145,13 +152,19 @@ class OverviewPage(QWidget):
 
     def set_progress(self, percent: int, message: str) -> None:
         if percent < 0:
+            self._progress_bar.setRange(0, 0)
+            self._progress_bar.setVisible(True)
             self._progress_text.setVisible(bool(message))
             self._progress_text.setText(message)
             return
+        self._progress_bar.setRange(0, 100)
+        self._progress_bar.setValue(percent)
+        self._progress_bar.setVisible(True)
         self._progress_text.setVisible(True)
         self._progress_text.setText(f"{percent}% — {message}" if message else f"{percent}%")
 
     def clear_progress(self) -> None:
+        self._progress_bar.setVisible(False)
         self._progress_text.setVisible(False)
         self._progress_text.setText("")
 

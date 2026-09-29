@@ -108,8 +108,8 @@ class MainWindow(QMainWindow):
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.progress.connect(self._on_progress)
-        self.backend.snapshots_ready.connect(self.restore_page.set_snapshots)
-        self.backend.restic.snapshots_listed.connect(self.restore_page.set_snapshots)
+        self.backend.snapshots_ready.connect(self._on_snapshots_ready)
+        self.backend.operation_finished.connect(self._on_operation_finished)
         self.scheduler.backup_due.connect(self.start_backup)
 
         self.tray = TrayController(self)
@@ -265,18 +265,33 @@ class MainWindow(QMainWindow):
         if not self.backend.has_password():
             return
         try:
+            self.restore_page.set_loading(True)
             self.backend.list_snapshots()
         except (BackendError, ResticProcessError) as exc:
+            self.restore_page.set_loading(False)
             log.warning("Cannot list snapshots: %s", exc)
+
+    def _on_snapshots_ready(self, snapshots) -> None:
+        self.restore_page.set_loading(False)
+        self.restore_page.set_snapshots(snapshots)
+
+    def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
+        if operation == "snapshots" and not success:
+            self.restore_page.set_loading(False)
 
     # ------------------------------------------------------------------ events
     def _on_backup_started(self) -> None:
         self.overview_page.set_backup_enabled(False)
         self.overview_page.clear_progress()
+        self.restore_page.set_enabled_state(True)
+        self.restore_page.clear_restore_progress()
         self.tray.set_state(running=True, status_text="Backup running…")
         self._refresh_overview(running=True)
 
     def _on_progress(self, percent: int, message: str) -> None:
+        if self.backend.restic._operation == "restore":
+            self.restore_page.set_restore_progress(percent, message)
+            return
         self.overview_page.set_progress(percent, message)
         if percent >= 0:
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
@@ -284,6 +299,8 @@ class MainWindow(QMainWindow):
     def _on_job_finished(self, success: bool, message: str) -> None:
         self.overview_page.set_backup_enabled(True)
         self.overview_page.clear_progress()
+        self.restore_page.set_enabled_state(False)
+        self.restore_page.clear_restore_progress()
         self._refresh_overview()
         self.tray.set_state(running=False, status_text="Packrat Backup")
         if not success:
