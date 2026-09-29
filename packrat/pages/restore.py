@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QHeaderView,
     QLabel,
     QLineEdit,
+    QProgressBar,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -80,10 +81,32 @@ class RestorePage(QWidget):
         snapshots_layout.addWidget(self._table)
         self._refresh_button = QPushButton("Refresh")
         self._refresh_button.clicked.connect(self.refresh_requested.emit)
+
+        self._loading_label = QLabel("Loading snapshots…")
+        self._loading_label.setStyleSheet("color: #666; font-style: italic;")
+        self._loading_label.setVisible(False)
+        self._loading_bar = QProgressBar()
+        self._loading_bar.setRange(0, 0)
+        self._loading_bar.setTextVisible(False)
+        self._loading_bar.setVisible(False)
+        self._loading_bar.setFixedHeight(6)
+
         refresh_row = QHBoxLayout()
         refresh_row.addWidget(self._refresh_button)
-        refresh_row.addStretch(1)
+        refresh_row.addWidget(self._loading_label)
+        refresh_row.addWidget(self._loading_bar, 1)
         snapshots_layout.addLayout(refresh_row)
+
+        self._restore_progress_bar = QProgressBar()
+        self._restore_progress_bar.setRange(0, 100)
+        self._restore_progress_bar.setVisible(False)
+        self._restore_progress_label = QLabel("")
+        self._restore_progress_label.setStyleSheet("color: #666;")
+        self._restore_progress_label.setVisible(False)
+        restore_progress_row = QHBoxLayout()
+        restore_progress_row.addWidget(self._restore_progress_bar, 1)
+        restore_progress_row.addWidget(self._restore_progress_label)
+        snapshots_layout.addLayout(restore_progress_row)
         root.addWidget(snapshots_box)
 
         target_box = QGroupBox("Restore into folder")
@@ -136,3 +159,27 @@ class RestorePage(QWidget):
 
     def set_enabled_state(self, running: bool) -> None:
         self._restore_button.setEnabled(not running)
+        self._refresh_button.setEnabled(not running)
+
+    def set_loading(self, loading: bool) -> None:
+        self._loading_label.setVisible(loading)
+        self._loading_bar.setVisible(loading)
+        self._refresh_button.setEnabled(not loading)
+
+    def set_restore_progress(self, percent: int, message: str) -> None:
+        visible = percent >= 0 or bool(message)
+        self._restore_progress_bar.setVisible(visible)
+        self._restore_progress_label.setVisible(visible)
+        if percent >= 0:
+            self._restore_progress_bar.setRange(0, 100)
+            self._restore_progress_bar.setValue(percent)
+            self._restore_progress_label.setText(
+                f"Restoring… {percent}%" + (f" — {message}" if message else "")
+            )
+        else:
+            self._restore_progress_bar.setRange(0, 0)
+            self._restore_progress_label.setText(message or "Restoring…")
+
+    def clear_restore_progress(self) -> None:
+        self._restore_progress_bar.setVisible(False)
+        self._restore_progress_label.setVisible(False)
