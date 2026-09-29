@@ -24,10 +24,12 @@ jobs:
       - name: Build source tarball
         run: |
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
           mkdir -p ~/rpmbuild/SOURCES
-          tar czf ~/rpmbuild/SOURCES/packrat-0.1.0.tar.gz \
-            --transform 's,^,Packrat-Backup-0.1.0/,' \
+          tar czf ~/rpmbuild/SOURCES/packrat-$VERSION.tar.gz \
+            --transform "s,^,Packrat-Backup-$VERSION/," \
             $(git ls-files)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
       - name: Build RPM
         run: |
           mkdir -p ~/rpmbuild/SPECS
