@@ -38,6 +38,11 @@ class BackupBackend(QObject):
         self._initing_for_backup = False
         self.restic.finished.connect(self._on_restic_finished)
         self.restic.progress.connect(self.progress)
+
+    def _backup_excludes(self) -> list:
+        excludes = list(self.settings.exclude_patterns)
+        excludes.extend(os.path.expanduser(f) for f in self.settings.ignored_folders)
+        return excludes
         self.restic.snapshots_listed.connect(self._on_snapshots)
         self.rclone.remotes_listed.connect(self._on_remotes)
 
@@ -87,7 +92,7 @@ class BackupBackend(QObject):
             self.repo_location(),
             self._password,
             self.settings.folders,
-            self.settings.exclude_patterns,
+            self._backup_excludes(),
         )
 
     def _repo_exists(self) -> bool:
@@ -129,7 +134,7 @@ class BackupBackend(QObject):
                     self.repo_location(),
                     self._password,
                     self.settings.folders,
-                    self.settings.exclude_patterns,
+                    self._backup_excludes(),
                 )
                 return
             except Exception as exc:

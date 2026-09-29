@@ -53,6 +53,7 @@ class AboutPage(QWidget):
         info.setOpenExternalLinks(True)
         info.setHtml(
             "<p><b>Packrat Backup</b> " + __version__ + "</p>"
+            "<p>By George Stevenson (setzor/junglgeorg)</p>"
             "<p>A friendly, restic-powered backup app for KDE Plasma with "
             "OneDrive and Google Drive support via rclone.</p>"
             "<p>External tools detected:<br>"

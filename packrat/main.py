@@ -166,7 +166,9 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ pages
     def _load_pages(self) -> None:
-        self.folders_page.load(self.settings.folders, self.settings.exclude_patterns)
+        self.folders_page.load(
+            self.settings.folders, self.settings.exclude_patterns, self.settings.ignored_folders
+        )
         self.storage_page.load(self.settings.backend_cfg)
         self.storage_page.set_remote_name(self.settings.backend_cfg.rclone_remote)
         self.schedule_page.load(self.settings.schedule)
@@ -183,9 +185,10 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ saving
     def _save_folders(self) -> None:
-        folders, excludes = self.folders_page.save()
+        folders, excludes, ignored = self.folders_page.save()
         self.settings.folders = folders
         self.settings.exclude_patterns = excludes
+        self.settings.ignored_folders = ignored
         self.settings.save()
         self._refresh_overview()
 
