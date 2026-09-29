@@ -52,6 +52,7 @@ class Settings:
         "first_run_done",
         "folders",
         "exclude_patterns",
+        "ignored_folders",
         "backend_kind",
         "local_path",
         "rclone_remote",
@@ -75,6 +76,7 @@ class Settings:
         self.close_to_tray: bool = True
         self.run_at_startup: bool = True
         self.folders: List[str] = []
+        self.ignored_folders: List[str] = []
         self.exclude_patterns: List[str] = [
             "~/.cache",
             "~/.local/share/Trash",
@@ -101,6 +103,7 @@ class Settings:
         self.close_to_tray = to_bool(s.value("close_to_tray", True, type=bool))
         self.run_at_startup = to_bool(s.value("run_at_startup", True, type=bool))
         self.folders = _to_str_list(s.value("folders", ""))
+        self.ignored_folders = _to_str_list(s.value("ignored_folders", ""))
         raw_excludes = s.value("exclude_patterns", "", type=str)
         if raw_excludes:
             self.exclude_patterns = _to_str_list(raw_excludes)
@@ -140,6 +143,7 @@ class Settings:
         s.setValue("close_to_tray", self.close_to_tray)
         s.setValue("run_at_startup", self.run_at_startup)
         s.setValue("folders", ",".join(self.folders))
+        s.setValue("ignored_folders", ",".join(self.ignored_folders))
         s.setValue("exclude_patterns", ",".join(self.exclude_patterns))
         s.setValue("backend_kind", self.backend_cfg.backend.value)
         s.setValue("local_path", self.backend_cfg.local_path)

@@ -36,6 +36,20 @@ class FoldersPage(QWidget):
         folders_layout.addWidget(self._folder_editor)
         root.addWidget(folders_box)
 
+        ignored_box = QGroupBox("Ignored folders")
+        ignored_layout = QVBoxLayout(ignored_box)
+        ignored_hint = QLabel(
+            "Folders listed here are never backed up, even if they are "
+            "inside an included folder above."
+        )
+        ignored_hint.setStyleSheet("color: #666;")
+        ignored_hint.setWordWrap(True)
+        ignored_layout.addWidget(ignored_hint)
+        self._ignored_editor = FolderListEditor()
+        self._ignored_editor.changed.connect(self._on_changed)
+        ignored_layout.addWidget(self._ignored_editor)
+        root.addWidget(ignored_box)
+
         excludes_box = QGroupBox("Ignore patterns (one per line)")
         excludes_layout = QVBoxLayout(excludes_box)
         self._excludes_edit = QTextEdit()
@@ -50,13 +64,15 @@ class FoldersPage(QWidget):
         self.changed.emit()
 
     # ------------------------------------------------------------------ state
-    def load(self, folders, exclude_patterns) -> None:
+    def load(self, folders, exclude_patterns, ignored_folders) -> None:
         self._folder_editor.set_folders(list(folders))
+        self._ignored_editor.set_folders(list(ignored_folders))
         self._excludes_edit.setPlainText("\n".join(exclude_patterns))
 
     def save(self) -> None:
         folders = self._folder_editor.folders()
+        ignored = self._ignored_editor.folders()
         excludes = [
             line.strip() for line in self._excludes_edit.toPlainText().splitlines() if line.strip()
         ]
-        return folders, excludes
+        return folders, excludes, ignored
