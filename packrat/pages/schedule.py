@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import QSignalBlocker, pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -86,6 +86,7 @@ class SchedulePage(QWidget):
 
     # ------------------------------------------------------------------ state
     def load(self, schedule_cfg) -> None:
+        blockers = [QSignalBlocker(widget) for widget in self._blocked_widgets()]
         if schedule_cfg.mode is ScheduleMode.OFF:
             self._off_radio.setChecked(True)
         elif schedule_cfg.mode is ScheduleMode.DAILY:
@@ -96,7 +97,16 @@ class SchedulePage(QWidget):
         self._time_combo.setCurrentIndex(index if index >= 0 else 24)
         for check, value in self._day_checks:
             check.setChecked(value in schedule_cfg.weekdays)
-        self._on_mode_changed()
+        for blocker in blockers:
+            blocker.unblock()
+        weekly = self._weekly_radio.isChecked()
+        for check, _value in self._day_checks:
+            check.setEnabled(weekly)
+
+    def _blocked_widgets(self):
+        widgets = [self._off_radio, self._daily_radio, self._weekly_radio, self._time_combo]
+        widgets.extend(check for check, _value in self._day_checks)
+        return widgets
 
     def save(self):
         if self._off_radio.isChecked():
