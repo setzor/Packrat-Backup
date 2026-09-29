@@ -101,7 +101,9 @@ class RestorePage(QWidget):
         browse_row = QHBoxLayout()
         self._browse_button = QPushButton("Browse Contents…")
         self._browse_button.clicked.connect(self._on_browse)
-        self._browse_hint = QLabel("Open the selected snapshot to see exactly which files it contains.")
+        self._browse_hint = QLabel(
+            "Open the selected snapshot to see exactly which files it contains."
+        )
         self._browse_hint.setStyleSheet("color: #666;")
         browse_row.addWidget(self._browse_button)
         browse_row.addWidget(self._browse_hint, 1)
@@ -152,9 +154,7 @@ class RestorePage(QWidget):
         time_item = self._table.item(row, 0)
         if item is None:
             return
-        self.browse_requested.emit(
-            item.text(), time_item.text() if time_item else ""
-        )
+        self.browse_requested.emit(item.text(), time_item.text() if time_item else "")
 
     def _on_restore(self) -> None:
         row = self._table.currentRow()

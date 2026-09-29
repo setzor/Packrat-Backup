@@ -1,4 +1,5 @@
 """Dialog to browse the contents of a snapshot before restoring."""
+
 from __future__ import annotations
 
 from typing import Optional
@@ -21,6 +22,7 @@ class SnapshotBrowserDialog(QDialog):
     """Shows a file tree of what a snapshot contains, Déjà Dup style."""
 
     closed = pyqtSignal()
+
     def __init__(
         self,
         snapshot_id: str,
