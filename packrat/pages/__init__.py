@@ -4,6 +4,7 @@ from .overview import OverviewPage
 from .preferences import PreferencesPage
 from .restore import RestorePage
 from .schedule import SchedulePage
+from .snapshot_browser import SnapshotBrowserDialog
 from .storage import StoragePage
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "RestorePage",
     "PreferencesPage",
     "AboutPage",
+    "SnapshotBrowserDialog",
 ]

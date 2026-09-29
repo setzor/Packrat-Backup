@@ -30,6 +30,7 @@ class ResticRunner(QObject):
     finished = pyqtSignal(bool, str)  # success, message
     progress = pyqtSignal(int, str)  # percent, status text
     snapshots_listed = pyqtSignal(list)  # parsed restic snapshots
+    files_listed = pyqtSignal(list)  # parsed restic ls nodes
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -112,6 +113,9 @@ class ResticRunner(QObject):
             "restore",
         )
 
+    def list_files(self, repo: str, password: str, snapshot_id: str) -> None:
+        self._launch(repo, password, ["ls", snapshot_id, "--json"], "ls")
+
     def prune(self, repo: str, password: str, keep_args: List[str]) -> None:
         self._launch(repo, password, ["forget", "--prune"] + keep_args, "prune")
 
@@ -159,6 +163,8 @@ class ResticRunner(QObject):
         success = exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
         if self._operation == "snapshots" and success:
             self.snapshots_listed.emit(_parse_snapshots(stdout))
+        elif self._operation == "ls" and success:
+            self.files_listed.emit(_parse_ls_nodes(stdout))
         message = _result_message(self._operation, success, exit_code, stderr)
         self._buffer = ""
         self.finished.emit(success, message)
@@ -227,11 +233,27 @@ def _parse_snapshots(stdout: str) -> List[dict]:
     return []
 
 
+def _parse_ls_nodes(stdout: str) -> List[dict]:
+    nodes: List[dict] = []
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and parsed.get("struct_type") == "node":
+            nodes.append(parsed)
+    return nodes
+
+
 def _result_message(operation: str, success: bool, exit_code: int, stderr: str) -> str:
     generic = {
         "init": "Repository initialised",
         "backup": "Backup complete",
         "snapshots": "Snapshots listed",
+        "ls": "Snapshot contents listed",
         "restore": "Restore complete",
         "prune": "Cleanup complete",
         "check": "Integrity check passed",

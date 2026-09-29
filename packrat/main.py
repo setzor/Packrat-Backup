@@ -33,6 +33,7 @@ from .pages import (
     PreferencesPage,
     RestorePage,
     SchedulePage,
+    SnapshotBrowserDialog,
     StoragePage,
 )
 from .passwords import load_password, store_password
@@ -61,6 +62,7 @@ class MainWindow(QMainWindow):
         self.backend = BackupBackend(self.settings, self)
         self.job = BackupJob(self.settings, self.backend, self)
         self.scheduler = Scheduler(self.settings.schedule, self)
+        self._browser: Optional[SnapshotBrowserDialog] = None
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -104,6 +106,8 @@ class MainWindow(QMainWindow):
         self.schedule_page.changed.connect(self._save_schedule)
         self.restore_page.refresh_requested.connect(self.refresh_snapshots)
         self.restore_page.restore_requested.connect(self.start_restore)
+        self.restore_page.browse_requested.connect(self._on_browse_snapshot)
+        self.backend.files_ready.connect(self._on_files_ready)
         self.preferences_page.changed.connect(self._save_preferences)
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
@@ -278,6 +282,37 @@ class MainWindow(QMainWindow):
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         if operation == "snapshots" and not success:
             self.restore_page.set_loading(False)
+        elif operation == "ls" and not success:
+            if self._browser is not None:
+                self._browser.set_error(f"Could not list snapshot contents: {message}")
+
+    def _on_browse_snapshot(self, snapshot_id: str, snapshot_time: str) -> None:
+        if self.backend.is_busy():
+            return
+        if not self.backend.has_password():
+            self._apply_password_from_store()
+        if not self.backend.has_password():
+            QMessageBox.warning(
+                self, "Packrat Backup", "No backup password is stored; cannot browse snapshots."
+            )
+            return
+        self._browser = SnapshotBrowserDialog(snapshot_id, snapshot_time, self)
+        self._browser.closed.connect(self._on_browser_closed)
+        self._browser.set_loading(True)
+        self._browser.open()
+        try:
+            self.backend.list_snapshot_files(snapshot_id)
+        except (BackendError, ResticProcessError) as exc:
+            self._browser.set_error(f"Could not list snapshot contents: {exc}")
+
+    def _on_files_ready(self, nodes) -> None:
+        if self._browser is not None:
+            self._browser.set_nodes(nodes)
+
+    def _on_browser_closed(self) -> None:
+        sender = self.sender()
+        if sender is self._browser:
+            self._browser = None
 
     # ------------------------------------------------------------------ events
     def _on_backup_started(self) -> None:

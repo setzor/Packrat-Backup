@@ -47,6 +47,7 @@ def _folders_text(snapshot: dict) -> str:
 class RestorePage(QWidget):
     refresh_requested = pyqtSignal()
     restore_requested = pyqtSignal(str, str)
+    browse_requested = pyqtSignal(str, str)
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -97,6 +98,15 @@ class RestorePage(QWidget):
         refresh_row.addWidget(self._loading_bar, 1)
         snapshots_layout.addLayout(refresh_row)
 
+        browse_row = QHBoxLayout()
+        self._browse_button = QPushButton("Browse Contents…")
+        self._browse_button.clicked.connect(self._on_browse)
+        self._browse_hint = QLabel("Open the selected snapshot to see exactly which files it contains.")
+        self._browse_hint.setStyleSheet("color: #666;")
+        browse_row.addWidget(self._browse_button)
+        browse_row.addWidget(self._browse_hint, 1)
+        snapshots_layout.addLayout(browse_row)
+
         self._restore_progress_bar = QProgressBar()
         self._restore_progress_bar.setRange(0, 100)
         self._restore_progress_bar.setVisible(False)
@@ -134,6 +144,18 @@ class RestorePage(QWidget):
         if directory:
             self._target_edit.setText(directory)
 
+    def _on_browse(self) -> None:
+        row = self._table.currentRow()
+        if row < 0:
+            return
+        item = self._table.item(row, 2)
+        time_item = self._table.item(row, 0)
+        if item is None:
+            return
+        self.browse_requested.emit(
+            item.text(), time_item.text() if time_item else ""
+        )
+
     def _on_restore(self) -> None:
         row = self._table.currentRow()
         if row < 0:
@@ -160,11 +182,13 @@ class RestorePage(QWidget):
     def set_enabled_state(self, running: bool) -> None:
         self._restore_button.setEnabled(not running)
         self._refresh_button.setEnabled(not running)
+        self._browse_button.setEnabled(not running)
 
     def set_loading(self, loading: bool) -> None:
         self._loading_label.setVisible(loading)
         self._loading_bar.setVisible(loading)
         self._refresh_button.setEnabled(not loading)
+        self._browse_button.setEnabled(not loading)
 
     def set_restore_progress(self, percent: int, message: str) -> None:
         visible = percent >= 0 or bool(message)
