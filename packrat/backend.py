@@ -27,6 +27,7 @@ class BackupBackend(QObject):
     progress = pyqtSignal(int, str)
     snapshots_ready = pyqtSignal(list)
     remotes_ready = pyqtSignal(list)
+    files_ready = pyqtSignal(list)
     check_finished = pyqtSignal(bool, str)
 
     def __init__(self, settings: Settings, parent: Optional[QObject] = None) -> None:
@@ -44,6 +45,7 @@ class BackupBackend(QObject):
         excludes.extend(os.path.expanduser(f) for f in self.settings.ignored_folders)
         return excludes
         self.restic.snapshots_listed.connect(self._on_snapshots)
+        self.restic.files_listed.connect(self._on_files)
         self.rclone.remotes_listed.connect(self._on_remotes)
 
     # ------------------------------------------------------------------ helpers
@@ -107,6 +109,9 @@ class BackupBackend(QObject):
     def list_snapshots(self) -> None:
         self.restic.snapshots(self.repo_location(), self._password)
 
+    def list_snapshot_files(self, snapshot_id: str) -> None:
+        self.restic.list_files(self.repo_location(), self._password, snapshot_id)
+
     def restore_snapshot(self, snapshot_id: str, target: str) -> None:
         os.makedirs(os.path.expanduser(target), exist_ok=True)
         self.restic.restore(self.repo_location(), self._password, snapshot_id, target)
@@ -148,6 +153,9 @@ class BackupBackend(QObject):
 
     def _on_snapshots(self, snapshots: list) -> None:
         self.snapshots_ready.emit(snapshots)
+
+    def _on_files(self, nodes: list) -> None:
+        self.files_ready.emit(nodes)
 
     def _on_remotes(self, remotes: list) -> None:
         self.remotes_ready.emit(remotes)
