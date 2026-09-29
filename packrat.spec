@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.1.0
+Version:        0.1.1
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,5 +73,11 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
+* Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.1-1
+- Fix Restore page Refresh crash when a restic operation is already running
+- Catch restic errors during first-run wizard repository init
+- Use Pakkie mascot for the tray icon and set an explicit window icon
+- Fix RPM metadata: python3-pyqt6 dependency, Packager, SPDX license
+
 * Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
 - Initial RPM package
