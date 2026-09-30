@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
 
         self.overview_page.backup_requested.connect(self.start_backup)
         self.overview_page.restore_requested.connect(self._goto_restore)
+        self.overview_page.verify_requested.connect(self.start_check)
         self.folders_page.changed.connect(self._save_folders)
         self.storage_page.changed.connect(self._save_storage)
         self.schedule_page.changed.connect(self._save_schedule)
@@ -113,6 +114,7 @@ class MainWindow(QMainWindow):
         self.job.finished.connect(self._on_job_finished)
         self.job.progress.connect(self._on_progress)
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
+        self.backend.check_finished.connect(self._on_check_finished)
         self.backend.operation_finished.connect(self._on_operation_finished)
         self.scheduler.backup_due.connect(self.start_backup)
 
@@ -244,6 +246,43 @@ class MainWindow(QMainWindow):
         except BackendError as exc:
             QMessageBox.warning(self, "Packrat Backup", str(exc))
 
+    def start_check(self) -> None:
+        if self.backend.is_busy():
+            return
+        if not self.backend.is_configured():
+            QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
+            return
+        if not self.backend.has_password():
+            self._apply_password_from_store()
+        if not self.backend.has_password():
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "No backup password is stored; cannot verify the repository.",
+            )
+            return
+        try:
+            self.overview_page.set_checking(True)
+            self.overview_page.clear_progress()
+            self.backend.check()
+        except (BackendError, ResticProcessError) as exc:
+            self.overview_page.set_checking(False)
+            QMessageBox.warning(self, "Packrat Backup", str(exc))
+
+    def _on_check_finished(self, success: bool, message: str) -> None:
+        self.overview_page.set_checking(False)
+        self.overview_page.clear_progress()
+        if success:
+            self.tray.show_message("Packrat Backup", "Repository verification succeeded.")
+            QMessageBox.information(
+                self, "Packrat Backup", f"Repository integrity check passed.\n\n{message}"
+            )
+        else:
+            self.tray.show_message("Packrat Backup", "Repository verification failed!")
+            QMessageBox.warning(
+                self, "Packrat Backup", f"Repository integrity check failed:\n\n{message}"
+            )
+
     def start_restore(self, snapshot_id: str, target: str) -> None:
         if self.job.is_running():
             return
@@ -326,6 +365,9 @@ class MainWindow(QMainWindow):
     def _on_progress(self, percent: int, message: str) -> None:
         if self.backend.restic._operation == "restore":
             self.restore_page.set_restore_progress(percent, message)
+            return
+        if self.backend.restic._operation == "check":
+            self.overview_page.set_progress(percent, message)
             return
         self.overview_page.set_progress(percent, message)
         if percent >= 0:

@@ -59,6 +59,7 @@ class _StatTile(QFrame):
 class OverviewPage(QWidget):
     backup_requested = pyqtSignal()
     restore_requested = pyqtSignal()
+    verify_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -118,8 +119,12 @@ class OverviewPage(QWidget):
         self._restore_button = QPushButton("Restore…")
         self._restore_button.setMinimumHeight(44)
         self._restore_button.clicked.connect(self.restore_requested.emit)
+        self._verify_button = QPushButton("Verify Repository")
+        self._verify_button.setMinimumHeight(44)
+        self._verify_button.clicked.connect(self.verify_requested.emit)
         actions.addWidget(self._backup_button)
         actions.addWidget(self._restore_button)
+        actions.addWidget(self._verify_button)
         actions.addStretch(1)
         root.addLayout(actions)
         root.addStretch(1)
@@ -170,3 +175,10 @@ class OverviewPage(QWidget):
 
     def set_backup_enabled(self, enabled: bool) -> None:
         self._backup_button.setEnabled(enabled)
+
+    def set_verify_enabled(self, enabled: bool) -> None:
+        self._verify_button.setEnabled(enabled)
+
+    def set_checking(self, checking: bool) -> None:
+        self._verify_button.setText("Verifying…" if checking else "Verify Repository")
+        self._verify_button.setEnabled(not checking)
