@@ -92,10 +92,10 @@ class MainWindow(QMainWindow):
         for page in (
             self.overview_page,
             self.folders_page,
-            self.history_page,
             self.storage_page,
             self.schedule_page,
             self.restore_page,
+            self.history_page,
             self.preferences_page,
             self.about_page,
         ):

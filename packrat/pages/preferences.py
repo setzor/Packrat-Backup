@@ -66,8 +66,12 @@ class PreferencesPage(QWidget):
 
     # ------------------------------------------------------------------ state
     def load(self, settings) -> None:
+        for check in (self._close_to_tray_check, self._run_at_startup_check):
+            check.blockSignals(True)
         self._close_to_tray_check.setChecked(settings.close_to_tray)
         self._run_at_startup_check.setChecked(settings.run_at_startup)
+        for check in (self._close_to_tray_check, self._run_at_startup_check):
+            check.blockSignals(False)
 
     def save(self):
         return {
