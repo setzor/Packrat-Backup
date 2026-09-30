@@ -6,7 +6,9 @@ from typing import Optional
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QTextEdit,
     QVBoxLayout,
@@ -14,6 +16,12 @@ from PyQt6.QtWidgets import (
 )
 
 from ..widgets import FolderListEditor
+
+EXCLUDE_PRESETS = [
+    ("Caches", ["~/.cache", "~/.var/app/*/cache", "~/.thumbnails"]),
+    ("Trash", ["~/.local/share/Trash"]),
+    ("Virtual machine disks", ["*.vdi", "*.vmdk", "*.qcow2", "*.vhd", "*.vhdx"]),
+]
 
 
 class FoldersPage(QWidget):
@@ -52,6 +60,18 @@ class FoldersPage(QWidget):
 
         excludes_box = QGroupBox("Ignore patterns (one per line)")
         excludes_layout = QVBoxLayout(excludes_box)
+        presets_label = QLabel("Quick presets:")
+        presets_label.setStyleSheet("color: #666;")
+        excludes_layout.addWidget(presets_label)
+        presets_row = QHBoxLayout()
+        self._preset_boxes = []
+        for label, _patterns in EXCLUDE_PRESETS:
+            box = QCheckBox(label)
+            box.toggled.connect(self._on_changed)
+            self._preset_boxes.append(box)
+            presets_row.addWidget(box)
+        presets_row.addStretch(1)
+        excludes_layout.addLayout(presets_row)
         self._excludes_edit = QTextEdit()
         self._excludes_edit.setPlaceholderText("~/.cache\n~/.local/share/Trash\n**/*.tmp")
         self._excludes_edit.setFixedHeight(120)
@@ -67,7 +87,12 @@ class FoldersPage(QWidget):
     def load(self, folders, exclude_patterns, ignored_folders) -> None:
         self._folder_editor.set_folders(list(folders))
         self._ignored_editor.set_folders(list(ignored_folders))
-        self._excludes_edit.setPlainText("\n".join(exclude_patterns))
+        patterns = list(exclude_patterns)
+        for box, (_label, preset_patterns) in zip(self._preset_boxes, EXCLUDE_PRESETS):
+            box.blockSignals(True)
+            box.setChecked(all(p in patterns for p in preset_patterns))
+            box.blockSignals(False)
+        self._excludes_edit.setPlainText("\n".join(patterns))
 
     def save(self) -> None:
         folders = self._folder_editor.folders()
@@ -75,4 +100,9 @@ class FoldersPage(QWidget):
         excludes = [
             line.strip() for line in self._excludes_edit.toPlainText().splitlines() if line.strip()
         ]
+        for box, (_label, preset_patterns) in zip(self._preset_boxes, EXCLUDE_PRESETS):
+            if box.isChecked():
+                for pattern in preset_patterns:
+                    if pattern not in excludes:
+                        excludes.append(pattern)
         return folders, excludes, ignored
