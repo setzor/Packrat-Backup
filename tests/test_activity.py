@@ -28,3 +28,27 @@ def test_load_runs_newest_first_and_limit(tmp_path, monkeypatch):
 def test_load_runs_missing_file(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
     assert load_runs() == []
+
+
+def test_prune_runs_are_logged(tmp_path, monkeypatch):
+    import pytest
+
+    pytest.importorskip("PyQt6")
+    from PyQt6.QtWidgets import QApplication
+
+    QApplication.instance() or QApplication([])
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    from packrat.backend import BackupBackend
+    from packrat.jobs import BackupJob
+    from packrat.settings import Settings
+
+    settings = Settings()
+    backend = BackupBackend(settings)
+    job = BackupJob(settings, backend)
+    job._started_at = "2026-09-30T10:00:00"
+    job._started_monotonic = 0.0
+    job._on_operation_finished("prune", True, "Cleanup complete")
+    runs = load_runs()
+    assert len(runs) == 1
+    assert runs[0]["operation"] == "prune"
+    assert runs[0]["success"] is True

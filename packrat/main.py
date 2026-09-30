@@ -65,6 +65,7 @@ class MainWindow(QMainWindow):
         self.job = BackupJob(self.settings, self.backend, self)
         self.scheduler = Scheduler(self.settings.schedule, self)
         self._browser: Optional[SnapshotBrowserDialog] = None
+        self._last_operation: str = ""
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -109,6 +110,7 @@ class MainWindow(QMainWindow):
         self.folders_page.changed.connect(self._save_folders)
         self.storage_page.changed.connect(self._save_storage)
         self.schedule_page.changed.connect(self._save_schedule)
+        self.schedule_page.clean_now_requested.connect(self.start_cleanup)
         self.history_page.refresh_requested.connect(self._refresh_history)
         self.restore_page.refresh_requested.connect(self.refresh_snapshots)
         self.restore_page.restore_requested.connect(self.start_restore)
@@ -118,6 +120,7 @@ class MainWindow(QMainWindow):
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.finished.connect(lambda *_: self._refresh_history())
+        self.backend.operation_finished.connect(self._maybe_auto_prune)
         self.job.progress.connect(self._on_progress)
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
         self.backend.check_finished.connect(self._on_check_finished)
@@ -206,7 +209,11 @@ class MainWindow(QMainWindow):
         )
         self.storage_page.load(self.settings.backend_cfg)
         self.storage_page.set_remote_name(self.settings.backend_cfg.rclone_remote)
-        self.schedule_page.load(self.settings.schedule, paused=self.settings.schedule_paused)
+        self.schedule_page.load(
+            self.settings.schedule,
+            paused=self.settings.schedule_paused,
+            settings=self.settings,
+        )
         self.preferences_page.load(self.settings)
         self._nav.setCurrentRow(0)
 
@@ -244,6 +251,11 @@ class MainWindow(QMainWindow):
         self.settings.schedule.time = data["time"]
         self.settings.schedule.weekdays = data["weekdays"]
         self.settings.schedule_paused = data["paused"]
+        self.settings.keep_daily = data["keep_daily"]
+        self.settings.keep_weekly = data["keep_weekly"]
+        self.settings.keep_monthly = data["keep_monthly"]
+        self.settings.keep_yearly = data["keep_yearly"]
+        self.settings.auto_prune = data["auto_prune"]
         self.settings.save()
         self.scheduler.set_paused(self.settings.schedule_paused)
         self.tray.set_pause_state(self.settings.schedule_paused)
@@ -352,7 +364,22 @@ class MainWindow(QMainWindow):
         self.restore_page.set_loading(False)
         self.restore_page.set_snapshots(snapshots)
 
+    def _maybe_auto_prune(self, operation: str, success: bool, _message: str) -> None:
+        if operation != "backup" or not success:
+            return
+        if not self.settings.auto_prune:
+            return
+        if self.job.is_running():
+            return
+        if not self.backend.has_password():
+            return
+        log.info("Auto-prune: cleaning up after successful backup")
+        if self.job.start_prune():
+            self.schedule_page.set_cleaning(True)
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
+        self._last_operation = operation
         if operation == "snapshots" and not success:
             self.restore_page.set_loading(False)
         elif operation == "ls" and not success:
@@ -400,6 +427,9 @@ class MainWindow(QMainWindow):
         if self.backend.restic._operation == "restore":
             self.restore_page.set_restore_progress(percent, message)
             return
+        if self.backend.restic._operation == "prune":
+            self.overview_page.set_progress(percent, message)
+            return
         if self.backend.restic._operation == "check":
             self.overview_page.set_progress(percent, message)
             return
@@ -408,6 +438,9 @@ class MainWindow(QMainWindow):
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
     def _on_job_finished(self, success: bool, message: str) -> None:
+        if getattr(self, "_last_operation", None) == "prune":
+            self._on_cleanup_finished(success, message)
+            return
         self.overview_page.set_backup_enabled(True)
         self.overview_page.clear_progress()
         self.restore_page.set_enabled_state(False)
@@ -418,6 +451,40 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Packrat Backup", message)
         else:
             self.tray.show_message("Packrat Backup", message)
+
+    def start_cleanup(self) -> None:
+        """Run a manual cleanup (restic forget --prune) using the retention policy."""
+        if self.job.is_running():
+            QMessageBox.information(
+                self, "Packrat Backup", "A backup or cleanup is already running."
+            )
+            return
+        if not self.backend.is_configured():
+            QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
+            return
+        if not self.backend.has_password():
+            self._apply_password_from_store()
+        if not self.backend.has_password():
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "No backup password is stored; cannot clean up the repository.",
+            )
+            return
+        if self.job.start_prune():
+            self.schedule_page.set_cleaning(True)
+            self.overview_page.set_backup_enabled(False)
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+
+    def _on_cleanup_finished(self, success: bool, message: str) -> None:
+        self.schedule_page.set_cleaning(False)
+        self.overview_page.set_backup_enabled(True)
+        self._refresh_overview()
+        self.tray.set_state(running=False, status_text="Packrat Backup")
+        if success:
+            self.tray.show_message("Packrat Backup", "Cleanup finished successfully.")
+        else:
+            QMessageBox.warning(self, "Packrat Backup", f"Cleanup failed: {message}")
 
     def _refresh_history(self) -> None:
         self.history_page.refresh()

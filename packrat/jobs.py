@@ -76,9 +76,24 @@ class BackupJob(QObject):
             self.finished.emit(False, f"Restore failed to start: {exc}")
             return False
 
+    def start_prune(self) -> bool:
+        if self.is_running():
+            return False
+        try:
+            self._running = True
+            self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
+            self._started_monotonic = time.monotonic()
+            self.backend.prune()
+            return True
+        except Exception as exc:
+            self._running = False
+            log.exception("Cleanup failed to start")
+            self.finished.emit(False, f"Cleanup failed to start: {exc}")
+            return False
+
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._running = False
-        if operation in ("backup", "restore"):
+        if operation in ("backup", "restore", "prune"):
             log_run(
                 operation,
                 success,

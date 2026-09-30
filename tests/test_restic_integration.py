@@ -108,3 +108,56 @@ def test_keep_args_from_settings():
 def test_runner_reports_missing_binary():
     runner = ResticRunner()
     assert runner.is_running() is False
+
+
+def test_prune_removes_old_snapshots(repo, tmp_path):
+    src = tmp_path / "docs"
+    src.mkdir()
+    (src / "v1.txt").write_text("one")
+    env = _env()
+    subprocess.run(
+        ["restic", "backup", "--repo", repo, str(src), "--tag", "old"],
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    import time
+
+    time.sleep(1.1)
+    (src / "v2.txt").write_text("two")
+    subprocess.run(
+        ["restic", "backup", "--repo", repo, str(src)],
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    before = subprocess.run(
+        ["restic", "snapshots", "--json", "--repo", repo],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert len(json.loads(before.stdout)) == 2
+    subprocess.run(
+        [
+            "restic",
+            "forget",
+            "--prune",
+            "--keep-last",
+            "1",
+            "--repo",
+            repo,
+        ],
+        env=env,
+        check=True,
+        capture_output=True,
+    )
+    after = subprocess.run(
+        ["restic", "snapshots", "--json", "--repo", repo],
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    assert len(json.loads(after.stdout)) == 1

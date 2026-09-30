@@ -12,7 +12,9 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QRadioButton,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -32,6 +34,7 @@ _WEEKDAYS = [
 
 class SchedulePage(QWidget):
     changed = pyqtSignal()
+    clean_now_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -85,6 +88,68 @@ class SchedulePage(QWidget):
             self._day_checks.append((check, value))
             days_layout.addWidget(check)
         root.addWidget(days_box)
+
+        retention_box = QGroupBox("How long to keep old backups")
+        retention_layout = QVBoxLayout(retention_box)
+        retention_hint = QLabel(
+            "Old backups beyond these limits are removed. One backup of each "
+            "period is always kept, so you never lose every restore point."
+        )
+        retention_hint.setStyleSheet("color: #666;")
+        retention_hint.setWordWrap(True)
+        retention_layout.addWidget(retention_hint)
+        self._keep_daily_spin = QSpinBox()
+        self._keep_daily_spin.setRange(0, 365)
+        self._keep_daily_spin.setSuffix(" days")
+        self._keep_weekly_spin = QSpinBox()
+        self._keep_weekly_spin.setRange(0, 52)
+        self._keep_weekly_spin.setSuffix(" weeks")
+        self._keep_monthly_spin = QSpinBox()
+        self._keep_monthly_spin.setRange(0, 120)
+        self._keep_monthly_spin.setSuffix(" months")
+        self._keep_yearly_spin = QSpinBox()
+        self._keep_yearly_spin.setRange(0, 100)
+        self._keep_yearly_spin.setSuffix(" years")
+        for spin in (
+            self._keep_daily_spin,
+            self._keep_weekly_spin,
+            self._keep_monthly_spin,
+            self._keep_yearly_spin,
+        ):
+            spin.valueChanged.connect(self.changed.emit)
+
+        def _retention_row(caption, spin):
+            row = QHBoxLayout()
+            row.addWidget(QLabel(caption))
+            row.addWidget(spin)
+            row.addStretch(1)
+            return row
+
+        retention_layout.addLayout(_retention_row("Keep daily:", self._keep_daily_spin))
+        retention_layout.addLayout(_retention_row("Keep weekly:", self._keep_weekly_spin))
+        retention_layout.addLayout(_retention_row("Keep monthly:", self._keep_monthly_spin))
+        retention_layout.addLayout(_retention_row("Keep yearly:", self._keep_yearly_spin))
+
+        self._auto_prune_check = QCheckBox("Automatically clean up after each backup")
+        self._auto_prune_check.setToolTip(
+            "Runs the cleanup in the background after every successful backup.\n"
+            "Disable it to keep everything forever."
+        )
+        self._auto_prune_check.toggled.connect(self.changed.emit)
+        retention_layout.addWidget(self._auto_prune_check)
+
+        self._clean_now_button = QPushButton("Clean Up Now")
+        self._clean_now_button.clicked.connect(self.clean_now_requested.emit)
+        self._clean_now_button.setToolTip(
+            "Remove backups older than the limits above and free their space.\n"
+            "This marks old snapshots for removal and repacks the repository, "
+            "which can take a while on large repositories."
+        )
+        clean_row = QHBoxLayout()
+        clean_row.addWidget(self._clean_now_button)
+        clean_row.addStretch(1)
+        retention_layout.addLayout(clean_row)
+        root.addWidget(retention_box)
         root.addStretch(1)
 
     def _on_mode_changed(self) -> None:
@@ -105,14 +170,31 @@ class SchedulePage(QWidget):
         for check, _value in self._day_checks:
             check.setEnabled(not paused and weekly)
 
+    def set_cleaning(self, cleaning: bool) -> None:
+        self._clean_now_button.setText("Cleaning…" if cleaning else "Clean Up Now")
+        self._clean_now_button.setEnabled(not cleaning)
+
     def _schedule_widgets(self):
         widgets = [self._off_radio, self._daily_radio, self._weekly_radio, self._time_combo]
         widgets.extend(check for check, _value in self._day_checks)
         return widgets
 
     # ------------------------------------------------------------------ state
-    def load(self, schedule_cfg, paused: bool = False) -> None:
+    def load(self, schedule_cfg, paused: bool = False, settings=None) -> None:
         blockers = [QSignalBlocker(widget) for widget in self._blocked_widgets()]
+        if settings is not None:
+            for spin, value in (
+                (self._keep_daily_spin, settings.keep_daily),
+                (self._keep_weekly_spin, settings.keep_weekly),
+                (self._keep_monthly_spin, settings.keep_monthly),
+                (self._keep_yearly_spin, settings.keep_yearly),
+            ):
+                spin.blockSignals(True)
+                spin.setValue(int(value))
+                spin.blockSignals(False)
+            self._auto_prune_check.blockSignals(True)
+            self._auto_prune_check.setChecked(bool(settings.auto_prune))
+            self._auto_prune_check.blockSignals(False)
         self._pause_check.blockSignals(True)
         self._pause_check.setChecked(bool(paused))
         self._pause_check.blockSignals(False)
@@ -147,4 +229,9 @@ class SchedulePage(QWidget):
             "time": self._time_combo.currentText(),
             "weekdays": weekdays or [1],
             "paused": self._pause_check.isChecked(),
+            "keep_daily": self._keep_daily_spin.value(),
+            "keep_weekly": self._keep_weekly_spin.value(),
+            "keep_monthly": self._keep_monthly_spin.value(),
+            "keep_yearly": self._keep_yearly_spin.value(),
+            "auto_prune": self._auto_prune_check.isChecked(),
         }
