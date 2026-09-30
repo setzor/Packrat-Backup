@@ -68,7 +68,7 @@ class FoldersPage(QWidget):
         for label, patterns in EXCLUDE_PRESETS:
             box = QCheckBox(label)
             box.setToolTip("Excludes:\n" + "\n".join(patterns))
-            box.toggled.connect(self._on_changed)
+            box.toggled.connect(lambda checked, p=patterns: self._toggle_preset(p, checked))
             self._preset_boxes.append(box)
             presets_row.addWidget(box)
         presets_row.addStretch(1)
@@ -83,6 +83,18 @@ class FoldersPage(QWidget):
 
     def _on_changed(self) -> None:
         self.changed.emit()
+
+    def _toggle_preset(self, patterns: list, checked: bool) -> None:
+        lines = [
+            line.strip() for line in self._excludes_edit.toPlainText().splitlines() if line.strip()
+        ]
+        if checked:
+            for pattern in patterns:
+                if pattern not in lines:
+                    lines.append(pattern)
+        else:
+            lines = [line for line in lines if line not in patterns]
+        self._excludes_edit.setPlainText("\n".join(lines))
 
     # ------------------------------------------------------------------ state
     def load(self, folders, exclude_patterns, ignored_folders) -> None:
@@ -101,9 +113,4 @@ class FoldersPage(QWidget):
         excludes = [
             line.strip() for line in self._excludes_edit.toPlainText().splitlines() if line.strip()
         ]
-        for box, (_label, preset_patterns) in zip(self._preset_boxes, EXCLUDE_PRESETS):
-            if box.isChecked():
-                for pattern in preset_patterns:
-                    if pattern not in excludes:
-                        excludes.append(pattern)
         return folders, excludes, ignored
