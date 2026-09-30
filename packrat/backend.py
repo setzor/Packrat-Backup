@@ -39,14 +39,14 @@ class BackupBackend(QObject):
         self._initing_for_backup = False
         self.restic.finished.connect(self._on_restic_finished)
         self.restic.progress.connect(self.progress)
+        self.restic.snapshots_listed.connect(self._on_snapshots)
+        self.restic.files_listed.connect(self._on_files)
+        self.rclone.remotes_listed.connect(self._on_remotes)
 
     def _backup_excludes(self) -> list:
         excludes = list(self.settings.exclude_patterns)
         excludes.extend(os.path.expanduser(f) for f in self.settings.ignored_folders)
         return excludes
-        self.restic.snapshots_listed.connect(self._on_snapshots)
-        self.restic.files_listed.connect(self._on_files)
-        self.rclone.remotes_listed.connect(self._on_remotes)
 
     # ------------------------------------------------------------------ helpers
     def set_password(self, password: str) -> None:
