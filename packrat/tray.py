@@ -80,6 +80,9 @@ class TrayController(QObject):
         if path and os.path.isfile(path):
             self.icon.setIcon(QIcon(path))
 
+    def set_pause_state(self, paused: bool) -> None:
+        self._pause_action.setChecked(bool(paused))
+
     def set_state(
         self,
         running: bool = False,

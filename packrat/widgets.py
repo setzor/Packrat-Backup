@@ -81,6 +81,7 @@ class StatusBadge(QLabel):
         "warn": "background-color: #e6a123; color: white;",
         "error": "background-color: #d9534f; color: white;",
         "idle": "background-color: #6c757d; color: white;",
+        "info": "background-color: #3178c6; color: white;",
     }
 
     def __init__(

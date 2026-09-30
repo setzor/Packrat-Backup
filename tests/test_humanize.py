@@ -44,7 +44,7 @@ def test_backup_status_states():
     assert status == {"state": "warn", "label": "Not backed up yet"}
     # paused
     status = backup_status(NOW, None, paused=True)
-    assert status["state"] == "idle"
+    assert status["state"] == "info"
     assert "paused" in status["label"]
     # fresh backup, no schedule
     status = backup_status(NOW - dt.timedelta(hours=2), None, now=NOW)

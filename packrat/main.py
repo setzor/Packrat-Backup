@@ -29,6 +29,7 @@ from .jobs import BackupJob
 from .pages import (
     AboutPage,
     FoldersPage,
+    HistoryPage,
     OverviewPage,
     PreferencesPage,
     RestorePage,
@@ -50,6 +51,7 @@ _NAV = [
     ("Storage", "storage"),
     ("Schedule", "schedule"),
     ("Restore", "restore"),
+    ("History", "history"),
     ("Preferences", "preferences"),
     ("About", "about"),
 ]
@@ -81,6 +83,7 @@ class MainWindow(QMainWindow):
         self._stack = QStackedWidget()
         self.overview_page = OverviewPage()
         self.folders_page = FoldersPage()
+        self.history_page = HistoryPage()
         self.storage_page = StoragePage(self.backend.rclone)
         self.schedule_page = SchedulePage()
         self.restore_page = RestorePage()
@@ -89,6 +92,7 @@ class MainWindow(QMainWindow):
         for page in (
             self.overview_page,
             self.folders_page,
+            self.history_page,
             self.storage_page,
             self.schedule_page,
             self.restore_page,
@@ -105,6 +109,7 @@ class MainWindow(QMainWindow):
         self.folders_page.changed.connect(self._save_folders)
         self.storage_page.changed.connect(self._save_storage)
         self.schedule_page.changed.connect(self._save_schedule)
+        self.history_page.refresh_requested.connect(self._refresh_history)
         self.restore_page.refresh_requested.connect(self.refresh_snapshots)
         self.restore_page.restore_requested.connect(self.start_restore)
         self.restore_page.browse_requested.connect(self._on_browse_snapshot)
@@ -112,6 +117,7 @@ class MainWindow(QMainWindow):
         self.preferences_page.changed.connect(self._save_preferences)
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
+        self.job.finished.connect(lambda *_: self._refresh_history())
         self.job.progress.connect(self._on_progress)
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
         self.backend.check_finished.connect(self._on_check_finished)
@@ -127,6 +133,7 @@ class MainWindow(QMainWindow):
 
         self._load_pages()
         self._refresh_overview()
+        self._refresh_history()
         QTimer.singleShot(0, self._startup)
 
     # ------------------------------------------------------------------ startup
@@ -135,6 +142,7 @@ class MainWindow(QMainWindow):
             self._run_first_run_wizard()
         else:
             self._apply_password_from_store()
+        self.scheduler.set_paused(self.settings.schedule_paused)
         self.scheduler.start()
         update_autostart(self.settings.run_at_startup)
         self._run_missed_backup_catchup()
@@ -185,6 +193,7 @@ class MainWindow(QMainWindow):
         settings.save()
         self._load_pages()
         self._refresh_overview()
+        self._refresh_history()
         try:
             self.backend.init_repository()
         except (BackendError, ResticProcessError) as exc:
@@ -197,7 +206,7 @@ class MainWindow(QMainWindow):
         )
         self.storage_page.load(self.settings.backend_cfg)
         self.storage_page.set_remote_name(self.settings.backend_cfg.rclone_remote)
-        self.schedule_page.load(self.settings.schedule)
+        self.schedule_page.load(self.settings.schedule, paused=self.settings.schedule_paused)
         self.preferences_page.load(self.settings)
         self._nav.setCurrentRow(0)
 
@@ -205,6 +214,8 @@ class MainWindow(QMainWindow):
         self._stack.setCurrentIndex(row)
         if row == 4:
             self.refresh_snapshots()
+        elif row == 5:
+            self._refresh_history()
 
     def _goto_restore(self) -> None:
         self._nav.setCurrentRow(4)
@@ -232,7 +243,10 @@ class MainWindow(QMainWindow):
         self.settings.schedule.mode = data["mode"]
         self.settings.schedule.time = data["time"]
         self.settings.schedule.weekdays = data["weekdays"]
+        self.settings.schedule_paused = data["paused"]
         self.settings.save()
+        self.scheduler.set_paused(self.settings.schedule_paused)
+        self.tray.set_pause_state(self.settings.schedule_paused)
         self.scheduler.recompute()
         self._refresh_overview()
 
@@ -405,8 +419,14 @@ class MainWindow(QMainWindow):
         else:
             self.tray.show_message("Packrat Backup", message)
 
+    def _refresh_history(self) -> None:
+        self.history_page.refresh()
+
     def _on_tray_pause(self, paused: bool) -> None:
         self.scheduler.set_paused(paused)
+        self.settings.schedule_paused = paused
+        self.settings.save()
+        self.schedule_page.load(self.settings.schedule, paused=paused)
         self._refresh_overview()
 
     def _refresh_overview(self, running: bool = False) -> None:
