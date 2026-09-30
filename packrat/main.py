@@ -137,6 +137,26 @@ class MainWindow(QMainWindow):
             self._apply_password_from_store()
         self.scheduler.start()
         update_autostart(self.settings.run_at_startup)
+        self._run_missed_backup_catchup()
+
+    def _run_missed_backup_catchup(self) -> None:
+        """Run a missed backup on launch (e.g. machine was asleep when due)."""
+        if not self.settings.first_run_done:
+            return
+        if not self.settings.folders:
+            return
+        if self.job.is_running() or self.backend.is_busy():
+            return
+        last_dt = None
+        if self.settings.last_backup_time:
+            try:
+                last_dt = _dt.datetime.fromisoformat(self.settings.last_backup_time)
+            except ValueError:
+                last_dt = None
+        if not self.scheduler.missed_backup(last_dt):
+            return
+        log.info("Scheduled backup was missed while Packrat was not running; catching up")
+        self.start_backup()
 
     def _apply_password_from_store(self) -> None:
         password = load_password()

@@ -1,6 +1,6 @@
 import datetime as dt
 
-from packrat.scheduler import _parse_time, next_run_time
+from packrat.scheduler import Scheduler, _parse_time, next_run_time, previous_run_time
 from packrat.settings import ScheduleConfig, ScheduleMode
 
 
@@ -53,3 +53,46 @@ def test_parse_time_clamps_and_defaults():
     assert _parse_time("99:99") == (23, 59)
     assert _parse_time("not-a-time") == (12, 0)
     assert _parse_time("03:07") == (3, 7)
+
+
+def test_previous_run_time_daily():
+    now = dt.datetime(2026, 9, 28, 15, 0)
+    prev = previous_run_time(_cfg(ScheduleMode.DAILY, "12:00"), now)
+    assert prev == dt.datetime(2026, 9, 28, 12, 0)
+    now = dt.datetime(2026, 9, 28, 9, 0)
+    prev = previous_run_time(_cfg(ScheduleMode.DAILY, "12:00"), now)
+    assert prev == dt.datetime(2026, 9, 27, 12, 0)
+
+
+def test_previous_run_time_weekly():
+    # Monday 09:00 with Monday 12:00 slots: previous slot is last Monday.
+    now = dt.datetime(2026, 9, 28, 9, 0)
+    prev = previous_run_time(_cfg(ScheduleMode.WEEKLY, "12:00", weekdays=[0]), now)
+    assert prev == dt.datetime(2026, 9, 21, 12, 0)
+    # Later that Monday: previous slot is today.
+    now = dt.datetime(2026, 9, 28, 15, 0)
+    prev = previous_run_time(_cfg(ScheduleMode.WEEKLY, "12:00", weekdays=[0]), now)
+    assert prev == dt.datetime(2026, 9, 28, 12, 0)
+
+
+def test_previous_run_time_off_is_none():
+    assert previous_run_time(_cfg(ScheduleMode.OFF, "12:00")) is None
+
+
+def test_scheduler_missed_backup_detection(qapp):
+    cfg = _cfg(ScheduleMode.DAILY, "12:00")
+    s = Scheduler(cfg)
+    s.recompute()
+    now = dt.datetime(2026, 9, 28, 15, 0)
+    # Last backup before today's slot: missed.
+    assert s.missed_backup(dt.datetime(2026, 9, 28, 8, 0), now)
+    # Last backup after today's slot: not missed.
+    assert not s.missed_backup(dt.datetime(2026, 9, 28, 12, 30), now)
+    # Never backed up: no catch-up (let the regular schedule run).
+    assert not s.missed_backup(None, now)
+    # Paused or off: no catch-up.
+    s.set_paused(True)
+    assert not s.missed_backup(dt.datetime(2026, 9, 28, 8, 0), now)
+    s.set_paused(False)
+    s.config().mode = ScheduleMode.OFF
+    assert not s.missed_backup(dt.datetime(2026, 9, 28, 8, 0), now)
