@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import time
 from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
+from .activity import log_run
 from .backend import BackupBackend
 from .notify import notify, notify_error
 from .settings import Settings
@@ -32,6 +34,8 @@ class BackupJob(QObject):
         self.settings = settings
         self.backend = backend
         self._running = False
+        self._started_at: Optional[str] = ""
+        self._started_monotonic = 0.0
         backend.operation_finished.connect(self._on_operation_finished)
         backend.progress.connect(self.progress)
 
@@ -46,6 +50,8 @@ class BackupJob(QObject):
             return False
         try:
             self._running = True
+            self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
+            self._started_monotonic = time.monotonic()
             self.started.emit()
             self.backend.run_backup()
             return True
@@ -60,6 +66,8 @@ class BackupJob(QObject):
             return False
         try:
             self._running = True
+            self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
+            self._started_monotonic = time.monotonic()
             self.started.emit()
             self.backend.restore_snapshot(snapshot_id, target)
             return True
@@ -70,6 +78,14 @@ class BackupJob(QObject):
 
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._running = False
+        if operation in ("backup", "restore"):
+            log_run(
+                operation,
+                success,
+                message,
+                self._started_at,
+                time.monotonic() - self._started_monotonic,
+            )
         if operation == "backup" and success:
             now = _dt.datetime.now()
             self.settings.last_backup_time = now.isoformat(timespec="seconds")

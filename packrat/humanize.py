@@ -83,7 +83,7 @@ def backup_status(
     """
     now = now or _dt.datetime.now()
     if paused:
-        return {"state": "idle", "label": "Scheduling paused"}
+        return {"state": "info", "label": "Backups paused"}
     if last_backup is None:
         return {"state": "warn", "label": "Not backed up yet"}
     age_hours = (now - last_backup).total_seconds() / 3600

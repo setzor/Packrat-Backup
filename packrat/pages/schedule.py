@@ -43,6 +43,15 @@ class SchedulePage(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         root.addWidget(title)
 
+        self._pause_check = QCheckBox("Pause scheduled backups")
+        self._pause_check.setToolTip(
+            "Keep this schedule but skip automatic backups until you untick this.\n"
+            "Your schedule settings are remembered."
+        )
+        self._pause_check.toggled.connect(self._on_pause_toggled)
+        self._pause_check.toggled.connect(self.changed.emit)
+        root.addWidget(self._pause_check)
+
         mode_box = QGroupBox("Backup frequency")
         mode_layout = QVBoxLayout(mode_box)
         self._off_radio = QRadioButton("Manually only")
@@ -82,11 +91,31 @@ class SchedulePage(QWidget):
         weekly = self._weekly_radio.isChecked()
         for check, _value in self._day_checks:
             check.setEnabled(weekly)
+        self._apply_pause_state()
         self.changed.emit()
 
+    def _on_pause_toggled(self, checked: bool) -> None:
+        self._apply_pause_state()
+
+    def _apply_pause_state(self) -> None:
+        paused = self._pause_check.isChecked()
+        for widget in self._schedule_widgets():
+            widget.setEnabled(not paused)
+        weekly = self._weekly_radio.isChecked()
+        for check, _value in self._day_checks:
+            check.setEnabled(not paused and weekly)
+
+    def _schedule_widgets(self):
+        widgets = [self._off_radio, self._daily_radio, self._weekly_radio, self._time_combo]
+        widgets.extend(check for check, _value in self._day_checks)
+        return widgets
+
     # ------------------------------------------------------------------ state
-    def load(self, schedule_cfg) -> None:
+    def load(self, schedule_cfg, paused: bool = False) -> None:
         blockers = [QSignalBlocker(widget) for widget in self._blocked_widgets()]
+        self._pause_check.blockSignals(True)
+        self._pause_check.setChecked(bool(paused))
+        self._pause_check.blockSignals(False)
         if schedule_cfg.mode is ScheduleMode.OFF:
             self._off_radio.setChecked(True)
         elif schedule_cfg.mode is ScheduleMode.DAILY:
@@ -99,14 +128,11 @@ class SchedulePage(QWidget):
             check.setChecked(value in schedule_cfg.weekdays)
         for blocker in blockers:
             blocker.unblock()
-        weekly = self._weekly_radio.isChecked()
-        for check, _value in self._day_checks:
-            check.setEnabled(weekly)
+        self._apply_pause_state()
 
     def _blocked_widgets(self):
-        widgets = [self._off_radio, self._daily_radio, self._weekly_radio, self._time_combo]
-        widgets.extend(check for check, _value in self._day_checks)
-        return widgets
+        widgets = [self._schedule_widgets()]
+        return widgets[0]
 
     def save(self):
         if self._off_radio.isChecked():
@@ -120,4 +146,5 @@ class SchedulePage(QWidget):
             "mode": mode,
             "time": self._time_combo.currentText(),
             "weekdays": weekdays or [1],
+            "paused": self._pause_check.isChecked(),
         }
