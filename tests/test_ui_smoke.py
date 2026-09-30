@@ -2,8 +2,27 @@ import pytest
 
 pytest.importorskip("PyQt6")
 
-from packrat.main import MainWindow
+from packrat.main import _NAV, MainWindow
+from packrat.pages.about import AboutPage
+from packrat.pages.folders import FoldersPage
+from packrat.pages.history import HistoryPage
+from packrat.pages.overview import OverviewPage
+from packrat.pages.preferences import PreferencesPage
+from packrat.pages.restore import RestorePage
+from packrat.pages.schedule import SchedulePage
+from packrat.pages.storage import StoragePage
 from packrat.settings import Settings
+
+_PAGE_TYPES = [
+    OverviewPage,
+    FoldersPage,
+    StoragePage,
+    SchedulePage,
+    RestorePage,
+    HistoryPage,
+    PreferencesPage,
+    AboutPage,
+]
 
 
 @pytest.mark.skipif(
@@ -19,7 +38,13 @@ def test_main_window_construction(qapp, tmp_path, monkeypatch):
     window = MainWindow(settings)
     try:
         assert window.windowTitle() == "Packrat Backup"
-        assert window._stack.count() == 8
+        assert window._stack.count() == len(_NAV) == len(_PAGE_TYPES)
+        for row, (label, _key), page_type in zip(range(len(_NAV)), _NAV, _PAGE_TYPES):
+            assert isinstance(window._stack.widget(row), page_type), (
+                f"nav row {row} ({label}) shows "
+                f"{type(window._stack.widget(row)).__name__}, expected {page_type.__name__}"
+            )
+            assert window._nav.item(row).text() == label
         window.overview_page.set_state("2026-09-28 12:00", "", "somewhere", False)
         window.overview_page.set_progress(50, "Backing up")
         window.overview_page.clear_progress()
