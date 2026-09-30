@@ -40,6 +40,29 @@ def next_run_time(
     return None
 
 
+def previous_run_time(
+    cfg: ScheduleConfig, now: Optional[_dt.datetime] = None
+) -> Optional[_dt.datetime]:
+    """Compute the most recent scheduled datetime at or before now, or None."""
+    if cfg.mode is ScheduleMode.OFF:
+        return None
+    now = now or _dt.datetime.now()
+    hour, minute = _parse_time(cfg.time)
+    today = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if cfg.mode is ScheduleMode.DAILY:
+        return today if today <= now else today - _dt.timedelta(days=1)
+    if cfg.mode is ScheduleMode.WEEKLY:
+        weekdays = sorted(set(cfg.weekdays)) or [1]
+        for offset in range(8):
+            candidate = today - _dt.timedelta(days=offset)
+            if candidate.weekday() not in weekdays:
+                continue
+            if candidate <= now:
+                return candidate
+        return None
+    return None
+
+
 def _parse_time(value: str) -> tuple:
     try:
         hour, minute = str(value).split(":", 1)
@@ -85,6 +108,17 @@ class Scheduler(QObject):
         self._next_run = next_run_time(self._config)
         if self._next_run:
             log.info("Next backup scheduled for %s", self._next_run)
+
+    def missed_backup(
+        self, last_backup: Optional[_dt.datetime], now: Optional[_dt.datetime] = None
+    ) -> bool:
+        """True when the scheduled slot since the last completed backup was missed."""
+        if self._paused or self._config.mode is ScheduleMode.OFF:
+            return False
+        if last_backup is None:
+            return False
+        due = previous_run_time(self._config, now)
+        return due is not None and last_backup < due
 
     def next_run(self) -> Optional[_dt.datetime]:
         return self._next_run
