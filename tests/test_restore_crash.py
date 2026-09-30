@@ -60,3 +60,16 @@ def test_refresh_skipped_while_backend_busy(window, monkeypatch):
     window.restore_page._refresh_button.click()
 
     assert called == []
+
+
+def test_backend_signals_connected(qapp, tmp_path, monkeypatch):
+    from packrat.backend import BackupBackend
+    from packrat.settings import Settings
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    backend = BackupBackend(Settings())
+    receivers = backend.receivers(backend.snapshots_ready)
+    assert backend.restic.receivers(backend.restic.snapshots_listed) >= 1
+    assert backend.restic.receivers(backend.restic.files_listed) >= 1
+    assert backend.rclone.receivers(backend.rclone.remotes_listed) >= 1
+    assert receivers >= 0
