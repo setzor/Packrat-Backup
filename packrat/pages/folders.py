@@ -65,8 +65,9 @@ class FoldersPage(QWidget):
         excludes_layout.addWidget(presets_label)
         presets_row = QHBoxLayout()
         self._preset_boxes = []
-        for label, _patterns in EXCLUDE_PRESETS:
+        for label, patterns in EXCLUDE_PRESETS:
             box = QCheckBox(label)
+            box.setToolTip("Excludes:\n" + "\n".join(patterns))
             box.toggled.connect(self._on_changed)
             self._preset_boxes.append(box)
             presets_row.addWidget(box)
