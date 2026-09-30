@@ -38,6 +38,7 @@ def test_start_check_runs_backend_check(qapp, tmp_path, monkeypatch):
     window.backend.set_password("pw")
     called = {}
     monkeypatch.setattr(window.backend, "check", lambda: called.setdefault("run", True))
+    monkeypatch.setattr("packrat.main.QMessageBox.information", lambda *a, **k: None)
     monkeypatch.setattr("packrat.main.QMessageBox.warning", lambda *a, **k: None)
     try:
         window.start_check()
