@@ -73,3 +73,46 @@ def test_backend_signals_connected(qapp, tmp_path, monkeypatch):
     assert backend.restic.receivers(backend.restic.files_listed) >= 1
     assert backend.rclone.receivers(backend.rclone.remotes_listed) >= 1
     assert receivers >= 0
+
+
+def test_snapshot_cache_skips_rapid_reloads(window, monkeypatch):
+    calls = []
+    monkeypatch.setattr(window, "refresh_snapshots", lambda: calls.append(True))
+    # No snapshots loaded yet: first visit loads.
+    window.show_snapshots()
+    assert calls == [True]
+    # Simulate a completed load.
+    import datetime as dt
+
+    window._snapshots_loaded_at = dt.datetime.now()
+    window._snapshots_loaded_after_backup = window.settings.last_backup_time
+    # Rapid revisit: cached, no reload.
+    window.show_snapshots()
+    assert calls == [True]
+    # A finished backup invalidates the cache.
+    window.settings.last_backup_time = "2026-09-30T12:00:00"
+    window.show_snapshots()
+    assert calls == [True, True]
+
+
+def test_snapshot_cache_expires_after_interval(window, monkeypatch):
+    calls = []
+    monkeypatch.setattr(window, "refresh_snapshots", lambda: calls.append(True))
+    import datetime as dt
+
+    window._snapshots_loaded_at = dt.datetime.now() - dt.timedelta(minutes=61)
+    window._snapshots_loaded_after_backup = window.settings.last_backup_time
+    window.show_snapshots()
+    assert calls == [True]
+
+
+def test_snapshot_cache_disabled_always_reloads(window, monkeypatch):
+    calls = []
+    monkeypatch.setattr(window, "refresh_snapshots", lambda: calls.append(True))
+    import datetime as dt
+
+    window.settings.restore_refresh_minutes = 0
+    window._snapshots_loaded_at = dt.datetime.now()
+    window._snapshots_loaded_after_backup = window.settings.last_backup_time
+    window.show_snapshots()
+    assert calls == [True]

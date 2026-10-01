@@ -18,18 +18,27 @@ def test_preferences_page_roundtrip(qapp):
     settings.run_at_startup = False
     page = PreferencesPage()
     page.load(settings)
-    assert page.save() == {"close_to_tray": False, "run_at_startup": False}
+    assert page.save() == {
+        "close_to_tray": False,
+        "run_at_startup": False,
+        "restore_refresh_minutes": 60,
+    }
 
     page._close_to_tray_check.setChecked(True)
     page._run_at_startup_check.setChecked(True)
     data = page.save()
-    assert data == {"close_to_tray": True, "run_at_startup": True}
+    assert data == {
+        "close_to_tray": True,
+        "run_at_startup": True,
+        "restore_refresh_minutes": 60,
+    }
 
 
 def test_new_settings_defaults(qapp):
     settings = Settings()
     assert settings.close_to_tray is True
     assert settings.run_at_startup is True
+    assert settings.restore_refresh_minutes == 60
 
 
 def test_close_to_tray_persists(qapp):
@@ -55,3 +64,13 @@ def test_autostart_install_and_remove(autostart_dir):
 def test_autostart_remove_when_absent(autostart_dir):
     assert update_autostart(False) is True
     assert not (autostart_dir / "org.packrat.Backup.desktop").exists()
+
+
+def test_restore_refresh_setting_roundtrip(qapp):
+    settings = Settings()
+    settings.restore_refresh_minutes = 120
+    page = PreferencesPage()
+    page.load(settings)
+    assert page.save()["restore_refresh_minutes"] == 120
+    page._restore_refresh_spin.setValue(0)
+    assert page.save()["restore_refresh_minutes"] == 0

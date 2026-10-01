@@ -94,6 +94,7 @@ class Settings:
         self.keep_within: str = "1m"
         self.schedule_paused: bool = False
         self.auto_prune: bool = True
+        self.restore_refresh_minutes: int = 60
         self._load()
 
     def _expand(self, path: str) -> str:
@@ -140,6 +141,9 @@ class Settings:
         self.keep_within = s.value("keep_within", "1m", type=str)
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
         self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
+        self.restore_refresh_minutes = max(
+            0, s.value("restore_refresh_minutes", 60, type=int)
+        )
 
     def save(self) -> None:
         s = self._settings
@@ -166,6 +170,7 @@ class Settings:
         s.setValue("keep_within", self.keep_within)
         s.setValue("schedule_paused", self.schedule_paused)
         s.setValue("auto_prune", self.auto_prune)
+        s.setValue("restore_refresh_minutes", self.restore_refresh_minutes)
         s.sync()
 
     def add_folder(self, path: str) -> None:

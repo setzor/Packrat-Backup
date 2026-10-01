@@ -8,7 +8,9 @@ from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -59,6 +61,25 @@ class PreferencesPage(QWidget):
         behaviour_layout.addWidget(startup_hint)
 
         root.addWidget(behaviour_box)
+
+        performance_box = QGroupBox("Performance")
+        performance_layout = QHBoxLayout(performance_box)
+        performance_layout.addWidget(QLabel("Re-list snapshots on the Restore page at most every:"))
+        self._restore_refresh_spin = QSpinBox()
+        self._restore_refresh_spin.setRange(0, 1440)
+        self._restore_refresh_spin.setSuffix(" min")
+        self._restore_refresh_spin.setSpecialValueText("Always refresh")
+        self._restore_refresh_spin.setToolTip(
+            "How long a loaded snapshot list is reused when you revisit the "
+            'Restore page.\\nSet to "Always refresh" to reload every visit '
+            "(slower on cloud destinations).\\nThe list always reloads after a "
+            "backup finishes or when you click Refresh."
+        )
+        self._restore_refresh_spin.valueChanged.connect(self._on_changed)
+        performance_layout.addWidget(self._restore_refresh_spin)
+        performance_layout.addStretch(1)
+        root.addWidget(performance_box)
+
         root.addStretch(1)
 
     def _on_changed(self) -> None:
@@ -72,9 +93,13 @@ class PreferencesPage(QWidget):
         self._run_at_startup_check.setChecked(settings.run_at_startup)
         for check in (self._close_to_tray_check, self._run_at_startup_check):
             check.blockSignals(False)
+        self._restore_refresh_spin.blockSignals(True)
+        self._restore_refresh_spin.setValue(int(settings.restore_refresh_minutes))
+        self._restore_refresh_spin.blockSignals(False)
 
     def save(self):
         return {
             "close_to_tray": self._close_to_tray_check.isChecked(),
             "run_at_startup": self._run_at_startup_check.isChecked(),
+            "restore_refresh_minutes": self._restore_refresh_spin.value(),
         }
