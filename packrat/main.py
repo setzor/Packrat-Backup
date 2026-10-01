@@ -66,6 +66,8 @@ class MainWindow(QMainWindow):
         self.scheduler = Scheduler(self.settings.schedule, self)
         self._browser: Optional[SnapshotBrowserDialog] = None
         self._last_operation: str = ""
+        self._snapshots_loaded_at: Optional[_dt.datetime] = None
+        self._snapshots_loaded_after_backup: str = ""
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -220,7 +222,7 @@ class MainWindow(QMainWindow):
     def _on_nav_changed(self, row: int) -> None:
         self._stack.setCurrentIndex(row)
         if row == 4:
-            self.refresh_snapshots()
+            self.show_snapshots()
         elif row == 5:
             self._refresh_history()
 
@@ -266,6 +268,7 @@ class MainWindow(QMainWindow):
         data = self.preferences_page.save()
         self.settings.close_to_tray = data["close_to_tray"]
         self.settings.run_at_startup = data["run_at_startup"]
+        self.settings.restore_refresh_minutes = data["restore_refresh_minutes"]
         self.settings.save()
         update_autostart(self.settings.run_at_startup)
 
@@ -346,6 +349,25 @@ class MainWindow(QMainWindow):
             return
         self.job.start_restore(snapshot_id, target)
 
+    def show_snapshots(self) -> None:
+        """Show the Restore page, reloading only when the cache is stale."""
+        if self._snapshots_cache_valid():
+            return
+        self.refresh_snapshots()
+
+    def _snapshots_cache_valid(self) -> bool:
+        if self._snapshots_loaded_at is None:
+            return False
+        minutes = self.settings.restore_refresh_minutes
+        if minutes <= 0:
+            return False
+        age = (_dt.datetime.now() - self._snapshots_loaded_at).total_seconds() / 60
+        if age >= minutes:
+            return False
+        if self.settings.last_backup_time != self._snapshots_loaded_after_backup:
+            return False
+        return True
+
     def refresh_snapshots(self) -> None:
         if self.backend.is_busy():
             return
@@ -363,6 +385,8 @@ class MainWindow(QMainWindow):
     def _on_snapshots_ready(self, snapshots) -> None:
         self.restore_page.set_loading(False)
         self.restore_page.set_snapshots(snapshots)
+        self._snapshots_loaded_at = _dt.datetime.now()
+        self._snapshots_loaded_after_backup = self.settings.last_backup_time
 
     def _maybe_auto_prune(self, operation: str, success: bool, _message: str) -> None:
         if operation != "backup" or not success:

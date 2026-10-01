@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -117,18 +118,21 @@ class SchedulePage(QWidget):
             self._keep_yearly_spin,
         ):
             spin.valueChanged.connect(self.changed.emit)
+            spin.setMinimumWidth(110)
 
-        def _retention_row(caption, spin):
-            row = QHBoxLayout()
-            row.addWidget(QLabel(caption))
-            row.addWidget(spin)
-            row.addStretch(1)
-            return row
-
-        retention_layout.addLayout(_retention_row("Keep daily:", self._keep_daily_spin))
-        retention_layout.addLayout(_retention_row("Keep weekly:", self._keep_weekly_spin))
-        retention_layout.addLayout(_retention_row("Keep monthly:", self._keep_monthly_spin))
-        retention_layout.addLayout(_retention_row("Keep yearly:", self._keep_yearly_spin))
+        retention_grid = QGridLayout()
+        retention_grid.setHorizontalSpacing(32)
+        retention_grid.setVerticalSpacing(12)
+        retention_grid.addWidget(QLabel("Keep daily:"), 0, 0)
+        retention_grid.addWidget(self._keep_daily_spin, 0, 1)
+        retention_grid.addWidget(QLabel("Keep weekly:"), 0, 2)
+        retention_grid.addWidget(self._keep_weekly_spin, 0, 3)
+        retention_grid.addWidget(QLabel("Keep monthly:"), 1, 0)
+        retention_grid.addWidget(self._keep_monthly_spin, 1, 1)
+        retention_grid.addWidget(QLabel("Keep yearly:"), 1, 2)
+        retention_grid.addWidget(self._keep_yearly_spin, 1, 3)
+        retention_grid.setColumnStretch(4, 1)
+        retention_layout.addLayout(retention_grid)
 
         self._auto_prune_check = QCheckBox("Automatically clean up after each backup")
         self._auto_prune_check.setToolTip(
