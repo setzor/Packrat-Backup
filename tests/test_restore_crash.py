@@ -116,3 +116,14 @@ def test_snapshot_cache_disabled_always_reloads(window, monkeypatch):
     window._snapshots_loaded_after_backup = window.settings.last_backup_time
     window.show_snapshots()
     assert calls == [True]
+
+
+def test_cleanup_finish_clears_cleaning_state(window, monkeypatch):
+    monkeypatch.setattr(window.tray, "show_message", lambda *a, **k: None)
+    assert window.schedule_page._clean_now_button.text() == "Clean Up Now"
+    window.schedule_page.set_cleaning(True)
+    assert window.schedule_page._clean_now_button.text() == "Cleaning…"
+    window.job.last_operation = "prune"
+    window.job._on_operation_finished("prune", True, "Cleanup complete")
+    assert window.schedule_page._clean_now_button.text() == "Clean Up Now"
+    assert window.schedule_page._clean_now_button.isEnabled()
