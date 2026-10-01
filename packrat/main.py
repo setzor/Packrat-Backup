@@ -462,7 +462,7 @@ class MainWindow(QMainWindow):
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
     def _on_job_finished(self, success: bool, message: str) -> None:
-        if getattr(self, "_last_operation", None) == "prune":
+        if self.job.last_operation == "prune":
             self._on_cleanup_finished(success, message)
             return
         self.overview_page.set_backup_enabled(True)

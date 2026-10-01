@@ -34,6 +34,7 @@ class BackupJob(QObject):
         self.settings = settings
         self.backend = backend
         self._running = False
+        self.last_operation: str = ""
         self._started_at: Optional[str] = ""
         self._started_monotonic = 0.0
         backend.operation_finished.connect(self._on_operation_finished)
@@ -93,6 +94,7 @@ class BackupJob(QObject):
 
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._running = False
+        self.last_operation = operation
         if operation in ("backup", "restore", "prune"):
             log_run(
                 operation,
