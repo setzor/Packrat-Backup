@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.1.1
+Version:        0.1.2
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,14 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
+* Thu Oct 01 2026 Packrat Backup contributors <noreply@github.com> - 0.1.2-1
+- Guard all-zero retention policy so prune can never delete every snapshot
+- Wire restic QProcess errorOccurred so a failed launch no longer leaves the UI stuck
+- Add backup history page and persistent schedule pause setting
+- Add retention policy UI on Schedule page with auto-prune after backups
+- Cache Restore page snapshots per refresh interval
+- Fix page order mismatch in nav stack and spurious save during Preferences load
+- Fix Clean Up button not resetting after cleanup finishes
 * Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.1-1
 - Fix Restore page Refresh crash when a restic operation is already running
 - Catch restic errors during first-run wizard repository init
