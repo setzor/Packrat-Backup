@@ -105,6 +105,18 @@ def test_keep_args_from_settings():
     ]
 
 
+def test_keep_args_fallback_when_all_zero():
+    s = Settings()
+    s.keep_hourly = 0
+    s.keep_daily = 0
+    s.keep_weekly = 0
+    s.keep_monthly = 0
+    s.keep_yearly = 0
+    s.keep_within = ""
+    args = keep_args_from_settings(s)
+    assert args == ["--keep-within", "1m"]
+
+
 def test_runner_reports_missing_binary():
     runner = ResticRunner()
     assert runner.is_running() is False

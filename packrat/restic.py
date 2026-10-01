@@ -169,9 +169,9 @@ class ResticRunner(QObject):
         self._buffer = ""
         self.finished.emit(success, message)
 
-    def _on_error(self, proc: QProcess) -> None:
+    def _on_error(self, proc: QProcess, error) -> None:
         self._process = None
-        error = proc.error()
+        proc.deleteLater()
         self.finished.emit(False, f"restic process error: {error}")
 
 
@@ -310,4 +310,6 @@ def keep_args_from_settings(settings) -> List[str]:
     within = str(getattr(settings, "keep_within", "") or "").strip()
     if within:
         args += ["--keep-within", within]
+    if not args:
+        args = ["--keep-within", "1m"]
     return args
