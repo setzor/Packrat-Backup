@@ -93,6 +93,7 @@ class Settings:
         self.keep_yearly: int = 3
         self.keep_within: str = "1m"
         self.schedule_paused: bool = False
+        self.auto_prune: bool = True
         self._load()
 
     def _expand(self, path: str) -> str:
@@ -138,6 +139,7 @@ class Settings:
         self.keep_yearly = s.value("keep_yearly", 3, type=int)
         self.keep_within = s.value("keep_within", "1m", type=str)
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
+        self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
 
     def save(self) -> None:
         s = self._settings
@@ -163,6 +165,7 @@ class Settings:
         s.setValue("keep_yearly", self.keep_yearly)
         s.setValue("keep_within", self.keep_within)
         s.setValue("schedule_paused", self.schedule_paused)
+        s.setValue("auto_prune", self.auto_prune)
         s.sync()
 
     def add_folder(self, path: str) -> None:
