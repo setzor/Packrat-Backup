@@ -141,9 +141,7 @@ class Settings:
         self.keep_within = s.value("keep_within", "1m", type=str)
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
         self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
-        self.restore_refresh_minutes = max(
-            0, s.value("restore_refresh_minutes", 60, type=int)
-        )
+        self.restore_refresh_minutes = max(0, s.value("restore_refresh_minutes", 60, type=int))
 
     def save(self) -> None:
         s = self._settings
