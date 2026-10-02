@@ -7,12 +7,13 @@ exposes high-level operations used by the UI and the scheduler.
 from __future__ import annotations
 
 import os
+from subprocess import SubprocessError
 from typing import Optional
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .rclone import RcloneRunner
-from .restic import ResticRunner, keep_args_from_settings
+from .restic import Restic, ResticRunner, keep_args_from_settings
 from .settings import Backend, Settings
 
 
@@ -63,7 +64,9 @@ class BackupBackend(QObject):
         if not remote:
             raise BackendError("No rclone remote configured")
         sub = cfg.rclone_path.strip("/")
-        return f"rclone:{remote}:{sub}" if sub else f"rclone:{remote}:"
+        if not sub:
+            raise BackendError("No rclone repository folder configured for this remote")
+        return f"rclone:{remote}:{sub}"
 
     def is_configured(self) -> bool:
         try:
@@ -98,11 +101,30 @@ class BackupBackend(QObject):
         )
 
     def _repo_exists(self) -> bool:
-        import os
+        """True when the configured restic repository exists.
 
-        cfg = self.settings.backend_cfg
-        if cfg.backend is Backend.LOCAL:
-            path = os.path.expanduser(cfg.local_path)
+        ``restic cat config`` is authoritative for every backend (local and
+        rclone alike): exit code 10 means "repository does not exist" on
+        restic >= 0.17. On older restic the exit code is a generic 1, so the
+        stderr is scanned for the same wording restic uses there. Any
+        password failure means the repository exists but cannot be opened.
+        """
+        try:
+            repo = self.repo_location()
+        except BackendError:
+            return False
+        try:
+            ok, _, stderr = Restic.run(["--repo", repo, "cat", "config"], timeout=60)
+        except (OSError, SubprocessError):
+            ok, stderr = False, ""
+        if ok:
+            return True
+        if "repository does not exist" in stderr.lower():
+            return False
+        if "wrong password" in stderr.lower() or "password" in stderr.lower():
+            return True
+        if self.settings.backend_cfg.backend is Backend.LOCAL:
+            path = os.path.expanduser(self.settings.backend_cfg.local_path)
             return os.path.isdir(os.path.join(path, "keys"))
         return False
 
