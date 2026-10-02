@@ -278,17 +278,23 @@ class Restic:
     """Convenience synchronous helpers used by tests and background workers."""
 
     @staticmethod
-    def run(args: List[str], timeout: int = 300) -> Tuple[bool, str, str]:
+    def run(args: List[str], timeout: int = 300, password: str = "") -> Tuple[bool, str, str]:
         import subprocess
 
         binary = restic_path() or "restic"
+        env = dict(os.environ)
+        if password:
+            env["RESTIC_PASSWORD"] = password
+        else:
+            env.pop("RESTIC_PASSWORD", None)
         completed = subprocess.run(
-            [str(a) for a in args],
-            executable=binary,
+            [binary] + [str(a) for a in args],
             capture_output=True,
             text=True,
             timeout=timeout,
             check=False,
+            env=env,
+            stdin=subprocess.DEVNULL,
         )
         return completed.returncode == 0, completed.stdout, completed.stderr
 
