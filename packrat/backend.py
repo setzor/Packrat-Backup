@@ -114,14 +114,23 @@ class BackupBackend(QObject):
         except BackendError:
             return False
         try:
-            ok, _, stderr = Restic.run(["--repo", repo, "cat", "config"], timeout=60)
+            ok, _, stderr = Restic.run(
+                ["--repo", repo, "cat", "config"],
+                timeout=60,
+                password=self._password,
+            )
         except (OSError, SubprocessError):
             ok, stderr = False, ""
         if ok:
             return True
-        if "repository does not exist" in stderr.lower():
+        lowered = stderr.lower()
+        if "repository does not exist" in lowered:
             return False
-        if "wrong password" in stderr.lower() or "password" in stderr.lower():
+        if "no such file or directory" in lowered:
+            return False
+        if "is there a repository at the following location" in lowered:
+            return False
+        if "wrong password" in lowered or "password" in lowered:
             return True
         if self.settings.backend_cfg.backend is Backend.LOCAL:
             path = os.path.expanduser(self.settings.backend_cfg.local_path)
