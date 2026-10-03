@@ -102,9 +102,7 @@ class BackupJob(QObject):
                 message,
                 self._started_at,
                 time.monotonic() - self._started_monotonic,
-                snapshot_id=self.backend.last_snapshot_id
-                if operation == "backup"
-                else None,
+                snapshot_id=self.backend.last_snapshot_id if operation == "backup" else None,
             )
         if operation == "backup" and success:
             now = _dt.datetime.now()
