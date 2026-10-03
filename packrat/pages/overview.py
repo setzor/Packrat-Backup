@@ -20,6 +20,15 @@ from PyQt6.QtWidgets import (
 from ..widgets import StatusBadge
 
 
+def _human_size(num: float) -> str:
+    value = float(num)
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(value) < 1024:
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.1f} PiB"
+
+
 def _overview_mascot():
     import os
 
@@ -60,6 +69,7 @@ class OverviewPage(QWidget):
     backup_requested = pyqtSignal()
     restore_requested = pyqtSignal()
     verify_requested = pyqtSignal()
+    preview_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -125,8 +135,20 @@ class OverviewPage(QWidget):
         actions.addWidget(self._backup_button)
         actions.addWidget(self._restore_button)
         actions.addWidget(self._verify_button)
+        self._preview_button = QPushButton("Preview Backup")
+        self._preview_button.setMinimumHeight(44)
+        self._preview_button.setToolTip(
+            "Estimate how many files the next backup would upload and how big it would be."
+        )
+        self._preview_button.clicked.connect(self.preview_requested.emit)
+        actions.addWidget(self._preview_button)
         actions.addStretch(1)
         root.addLayout(actions)
+        self._preview_label = QLabel("")
+        self._preview_label.setWordWrap(True)
+        self._preview_label.setStyleSheet("color: #666;")
+        self._preview_label.setVisible(False)
+        root.addWidget(self._preview_label)
         root.addStretch(1)
 
     # ------------------------------------------------------------------ updates
@@ -182,3 +204,33 @@ class OverviewPage(QWidget):
     def set_checking(self, checking: bool) -> None:
         self._verify_button.setText("Verifying…" if checking else "Verify Repository")
         self._verify_button.setEnabled(not checking)
+
+    def set_previewing(self, previewing: bool) -> None:
+        self._preview_button.setText("Previewing…" if previewing else "Preview Backup")
+        self._preview_button.setEnabled(not previewing)
+
+    def set_preview_result(self, summary: dict) -> None:
+        """Show the dry-run estimate on the Overview page."""
+        if not summary:
+            self._preview_label.setText("Could not estimate the next backup.")
+            self._preview_label.setVisible(True)
+            return
+        changed = int(summary.get("files_new", 0) or 0) + int(summary.get("files_changed", 0) or 0)
+        total = int(summary.get("total_files_processed", 0) or 0)
+        size = int(summary.get("total_bytes_processed", 0) or 0)
+        added = int(summary.get("data_added", 0) or 0)
+        if total == 0:
+            text = "Nothing to back up — no files found in the selected folders."
+        elif changed == 0:
+            text = f"No changes: all {total} files are already in the repository."
+        else:
+            text = (
+                f"Next backup would upload {changed} of {total} files "
+                f"({_human_size(size)} scanned, about {_human_size(added)} new data)."
+            )
+        self._preview_label.setText(text)
+        self._preview_label.setVisible(True)
+
+    def clear_preview(self) -> None:
+        self._preview_label.setVisible(False)
+        self._preview_label.setText("")
