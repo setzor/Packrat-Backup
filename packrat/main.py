@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from . import APP_NAME
+from .activity import log_run
 from .backend import BackendError, BackupBackend
 from .humanize import (
     backup_status,
@@ -360,6 +361,8 @@ class MainWindow(QMainWindow):
     def _on_check_finished(self, success: bool, message: str) -> None:
         self.overview_page.set_checking(False)
         self.overview_page.clear_progress()
+        log_run("check", success, message, _dt.datetime.now().isoformat(timespec="seconds"))
+        self.history_page.refresh()
         if success:
             self.tray.show_message("Packrat Backup", "Repository verification succeeded.")
             QMessageBox.information(
@@ -486,7 +489,16 @@ class MainWindow(QMainWindow):
     def _on_verify_finished(self, success: bool, message: str) -> None:
         self.settings.last_verified_time = _dt.datetime.now().isoformat(timespec="seconds")
         self.settings.last_verified_ok = success
+        self.settings.last_verified_snapshot_id = self.backend.last_snapshot_id
         self.settings.save()
+        log_run(
+            "verify",
+            success,
+            message,
+            self.settings.last_verified_time,
+            snapshot_id=self.settings.last_verified_snapshot_id,
+        )
+        self.history_page.refresh()
         self.tray.set_state(running=False, status_text="Packrat Backup")
         self._refresh_overview()
         if success:
