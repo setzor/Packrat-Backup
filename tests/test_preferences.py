@@ -22,6 +22,7 @@ def test_preferences_page_roundtrip(qapp):
         "close_to_tray": False,
         "run_at_startup": False,
         "restore_refresh_minutes": 60,
+        "verify_after_backup": "sample",
     }
 
     page._close_to_tray_check.setChecked(True)
@@ -31,6 +32,7 @@ def test_preferences_page_roundtrip(qapp):
         "close_to_tray": True,
         "run_at_startup": True,
         "restore_refresh_minutes": 60,
+        "verify_after_backup": "sample",
     }
 
 

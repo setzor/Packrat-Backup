@@ -68,6 +68,12 @@ class Settings:
         "keep_monthly",
         "keep_yearly",
         "keep_within",
+        "schedule_paused",
+        "auto_prune",
+        "restore_refresh_minutes",
+        "verify_after_backup",
+        "last_verified_time",
+        "last_verified_ok",
     )
 
     def __init__(self) -> None:
@@ -95,6 +101,9 @@ class Settings:
         self.schedule_paused: bool = False
         self.auto_prune: bool = True
         self.restore_refresh_minutes: int = 60
+        self.verify_after_backup: str = "sample"
+        self.last_verified_time: str = ""
+        self.last_verified_ok: bool = False
         self._load()
 
     def _expand(self, path: str) -> str:
@@ -142,6 +151,10 @@ class Settings:
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
         self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
         self.restore_refresh_minutes = max(0, s.value("restore_refresh_minutes", 60, type=int))
+        verify = str(s.value("verify_after_backup", "sample", type=str))
+        self.verify_after_backup = verify if verify in ("off", "sample", "full") else "sample"
+        self.last_verified_time = s.value("last_verified_time", "", type=str)
+        self.last_verified_ok = to_bool(s.value("last_verified_ok", False, type=bool))
 
     def save(self) -> None:
         s = self._settings
@@ -169,6 +182,9 @@ class Settings:
         s.setValue("schedule_paused", self.schedule_paused)
         s.setValue("auto_prune", self.auto_prune)
         s.setValue("restore_refresh_minutes", self.restore_refresh_minutes)
+        s.setValue("verify_after_backup", self.verify_after_backup)
+        s.setValue("last_verified_time", self.last_verified_time)
+        s.setValue("last_verified_ok", self.last_verified_ok)
         s.sync()
 
     def add_folder(self, path: str) -> None:
