@@ -105,11 +105,11 @@ class Settings:
         self.first_run_done = to_bool(s.value("first_run_done", False, type=bool))
         self.close_to_tray = to_bool(s.value("close_to_tray", True, type=bool))
         self.run_at_startup = to_bool(s.value("run_at_startup", True, type=bool))
-        self.folders = _to_str_list(s.value("folders", ""))
-        self.ignored_folders = _to_str_list(s.value("ignored_folders", ""))
+        self.folders = _decode_str_list(s.value("folders", ""))
+        self.ignored_folders = _decode_str_list(s.value("ignored_folders", ""))
         raw_excludes = s.value("exclude_patterns", "", type=str)
         if raw_excludes:
-            self.exclude_patterns = _to_str_list(raw_excludes)
+            self.exclude_patterns = _decode_str_list(raw_excludes)
         else:
             self.exclude_patterns = [
                 "~/.cache",
@@ -130,7 +130,7 @@ class Settings:
         except ValueError:
             self.schedule.mode = ScheduleMode.OFF
         self.schedule.time = s.value("schedule_time", "12:00", type=str)
-        self.schedule.weekdays = _to_int_list(s.value("schedule_weekdays", "1"))
+        self.schedule.weekdays = _decode_int_list(s.value("schedule_weekdays", "1"))
         self.last_backup_time = s.value("last_backup_time", "", type=str)
         self.next_backup_time = s.value("next_backup_time", "", type=str)
         self.keep_hourly = s.value("keep_hourly", 0, type=int)
@@ -148,16 +148,16 @@ class Settings:
         s.setValue("first_run_done", self.first_run_done)
         s.setValue("close_to_tray", self.close_to_tray)
         s.setValue("run_at_startup", self.run_at_startup)
-        s.setValue("folders", ",".join(self.folders))
-        s.setValue("ignored_folders", ",".join(self.ignored_folders))
-        s.setValue("exclude_patterns", ",".join(self.exclude_patterns))
+        s.setValue("folders", _encode_list(self.folders))
+        s.setValue("ignored_folders", _encode_list(self.ignored_folders))
+        s.setValue("exclude_patterns", _encode_list(self.exclude_patterns))
         s.setValue("backend_kind", self.backend_cfg.backend.value)
         s.setValue("local_path", self.backend_cfg.local_path)
         s.setValue("rclone_remote", self.backend_cfg.rclone_remote)
         s.setValue("rclone_path", self.backend_cfg.rclone_path)
         s.setValue("schedule_mode", self.schedule.mode.value)
         s.setValue("schedule_time", self.schedule.time)
-        s.setValue("schedule_weekdays", ",".join(str(d) for d in self.schedule.weekdays))
+        s.setValue("schedule_weekdays", _encode_list(self.schedule.weekdays))
         s.setValue("last_backup_time", self.last_backup_time)
         s.setValue("next_backup_time", self.next_backup_time)
         s.setValue("keep_hourly", self.keep_hourly)
@@ -202,6 +202,49 @@ def _to_str_list(raw) -> List[str]:
     if isinstance(raw, list):
         return [str(item) for item in raw if str(item).strip()]
     return [item.strip() for item in str(raw).split(",") if item.strip()]
+
+
+def _encode_list(values) -> str:
+    """Encode a list as a JSON array so entries may contain commas."""
+    import json
+
+    return json.dumps([str(item) for item in values or []])
+
+
+def _decode_str_list(raw) -> List[str]:
+    """Decode a JSON-encoded list, migrating legacy comma-joined values."""
+    import json
+
+    if isinstance(raw, list):
+        return [str(item) for item in raw if str(item).strip()]
+    text = str(raw or "").strip()
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return _to_str_list(text)
+        if isinstance(parsed, list):
+            return [str(item) for item in parsed if str(item).strip()]
+        return []
+    return _to_str_list(text)
+
+
+def _decode_int_list(raw) -> List[int]:
+    """Decode a JSON-encoded int list, migrating legacy comma-joined values."""
+    import json
+
+    if isinstance(raw, list):
+        return _to_int_list(raw)
+    text = str(raw or "").strip()
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            return _to_int_list(text)
+        if isinstance(parsed, list):
+            return _to_int_list(parsed)
+        return []
+    return _to_int_list(text)
 
 
 def _to_int_list(raw) -> List[int]:
