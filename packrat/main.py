@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
+import os
 from typing import Optional
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
+    QDialog,
+    QFileDialog,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
@@ -332,7 +335,7 @@ class MainWindow(QMainWindow):
                 self, "Packrat Backup", f"Repository integrity check failed:\n\n{message}"
             )
 
-    def start_restore(self, snapshot_id: str, target: str) -> None:
+    def start_restore(self, snapshot_id: str, target: str, includes=None) -> None:
         if self.job.is_running():
             return
         if not snapshot_id or not target:
@@ -347,7 +350,28 @@ class MainWindow(QMainWindow):
                 self, "Packrat Backup", "No backup password is stored; cannot restore."
             )
             return
-        self.job.start_restore(snapshot_id, target)
+        self.job.start_restore(snapshot_id, target, includes)
+
+    def _on_restore_selected(self, paths: list) -> None:
+        """Partial restore from the snapshot browser (issue #16)."""
+        browser = self._browser
+        if browser is None or not paths:
+            return
+        if self.job.is_running():
+            QMessageBox.information(
+                self, "Packrat Backup", "A backup or restore is already running."
+            )
+            return
+        target = QFileDialog.getExistingDirectory(
+            self,
+            f"Restore {len(paths)} item{'s' if len(paths) != 1 else ''} into folder",
+            os.path.expanduser("~"),
+        )
+        if not target:
+            return
+        snapshot_id = browser.snapshot_id()
+        browser.done(QDialog.DialogCode.Rejected)
+        self.start_restore(snapshot_id, target, includes=paths)
 
     def show_snapshots(self) -> None:
         """Show the Restore page, reloading only when the cache is stale."""
@@ -422,6 +446,7 @@ class MainWindow(QMainWindow):
             return
         self._browser = SnapshotBrowserDialog(snapshot_id, snapshot_time, self)
         self._browser.closed.connect(self._on_browser_closed)
+        self._browser.restore_selected_requested.connect(self._on_restore_selected)
         self._browser.set_loading(True)
         self._browser.open()
         try:

@@ -62,7 +62,7 @@ class BackupJob(QObject):
             self.finished.emit(False, f"Backup failed to start: {exc}")
             return False
 
-    def start_restore(self, snapshot_id: str, target: str) -> bool:
+    def start_restore(self, snapshot_id: str, target: str, includes=None) -> bool:
         if self.is_running():
             return False
         try:
@@ -70,7 +70,7 @@ class BackupJob(QObject):
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
             self._started_monotonic = time.monotonic()
             self.started.emit()
-            self.backend.restore_snapshot(snapshot_id, target)
+            self.backend.restore_snapshot(snapshot_id, target, includes)
             return True
         except Exception as exc:
             self._running = False

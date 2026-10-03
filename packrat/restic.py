@@ -105,13 +105,18 @@ class ResticRunner(QObject):
     def snapshots(self, repo: str, password: str) -> None:
         self._launch(repo, password, ["snapshots", "--json"], "snapshots")
 
-    def restore(self, repo: str, password: str, snapshot_id: str, target: str) -> None:
-        self._launch(
-            repo,
-            password,
-            ["restore", snapshot_id, "--target", target],
-            "restore",
-        )
+    def restore(
+        self,
+        repo: str,
+        password: str,
+        snapshot_id: str,
+        target: str,
+        includes: Optional[List[str]] = None,
+    ) -> None:
+        args = ["restore", snapshot_id, "--target", target]
+        for pattern in includes or []:
+            args += ["--include", pattern]
+        self._launch(repo, password, args, "restore")
 
     def list_files(self, repo: str, password: str, snapshot_id: str) -> None:
         self._launch(repo, password, ["ls", snapshot_id, "--json"], "ls")
@@ -234,6 +239,12 @@ def _parse_snapshots(stdout: str) -> List[dict]:
 
 
 def _parse_ls_nodes(stdout: str) -> List[dict]:
+    """Parse `restic ls --json` nodes, normalising the name to a full path.
+
+    Older restic emits ``name`` as the absolute path; newer versions emit
+    ``name`` as the basename plus ``path`` as the absolute path. The ``path``
+    field wins when present.
+    """
     nodes: List[dict] = []
     for line in stdout.splitlines():
         line = line.strip()
@@ -243,8 +254,14 @@ def _parse_ls_nodes(stdout: str) -> List[dict]:
             parsed = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if isinstance(parsed, dict) and parsed.get("struct_type") == "node":
-            nodes.append(parsed)
+        if not (isinstance(parsed, dict) and parsed.get("struct_type") == "node"):
+            continue
+        path = parsed.get("path") or parsed.get("name") or ""
+        if not path:
+            continue
+        node = dict(parsed)
+        node["name"] = path.lstrip("/")
+        nodes.append(node)
     return nodes
 
 
