@@ -31,6 +31,7 @@ class ResticRunner(QObject):
     progress = pyqtSignal(int, str)  # percent, status text
     snapshots_listed = pyqtSignal(list)  # parsed restic snapshots
     files_listed = pyqtSignal(list)  # parsed restic ls nodes
+    dry_run_ready = pyqtSignal(dict)  # parsed restic backup --dry-run summary
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -94,13 +95,16 @@ class ResticRunner(QObject):
         password: str,
         folders: List[str],
         excludes: List[str],
+        dry_run: bool = False,
     ) -> None:
         args = ["backup", "--json"]
+        if dry_run:
+            args.append("--dry-run")
         for pattern in excludes:
             args += ["--exclude", os.path.expanduser(pattern)]
         for folder in folders:
             args.append(os.path.expanduser(folder))
-        self._launch(repo, password, args, "backup")
+        self._launch(repo, password, args, "dry-run" if dry_run else "backup")
 
     def snapshots(self, repo: str, password: str) -> None:
         self._launch(repo, password, ["snapshots", "--json"], "snapshots")
@@ -131,7 +135,7 @@ class ResticRunner(QObject):
     def _on_stdout(self, proc: QProcess) -> None:
         data = bytes(proc.readAllStandardOutput()).decode("utf-8", errors="replace")
         self._buffer += data
-        if self._operation == "backup":
+        if self._operation in ("backup", "dry-run"):
             for line in _json_lines(self._buffer):
                 self._handle_backup_message(line)
 
@@ -170,6 +174,8 @@ class ResticRunner(QObject):
             self.snapshots_listed.emit(_parse_snapshots(stdout))
         elif self._operation == "ls" and success:
             self.files_listed.emit(_parse_ls_nodes(stdout))
+        elif self._operation == "dry-run" and success:
+            self.dry_run_ready.emit(_parse_dry_run_summary(stdout))
         message = _result_message(self._operation, success, exit_code, stderr)
         self._buffer = ""
         self.finished.emit(success, message)
@@ -238,6 +244,21 @@ def _parse_snapshots(stdout: str) -> List[dict]:
     return []
 
 
+def _parse_dry_run_summary(stdout: str) -> dict:
+    """Extract the final summary message from `restic backup --dry-run --json`."""
+    for line in reversed(stdout.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and parsed.get("message_type") == "summary":
+            return parsed
+    return {}
+
+
 def _parse_ls_nodes(stdout: str) -> List[dict]:
     """Parse `restic ls --json` nodes, normalising the name to a full path.
 
@@ -269,6 +290,7 @@ def _result_message(operation: str, success: bool, exit_code: int, stderr: str) 
     generic = {
         "init": "Repository initialised",
         "backup": "Backup complete",
+        "dry-run": "Backup preview complete",
         "snapshots": "Snapshots listed",
         "ls": "Snapshot contents listed",
         "restore": "Restore complete",

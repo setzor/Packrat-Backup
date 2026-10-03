@@ -112,6 +112,7 @@ class MainWindow(QMainWindow):
         self.overview_page.backup_requested.connect(self.start_backup)
         self.overview_page.restore_requested.connect(self._goto_restore)
         self.overview_page.verify_requested.connect(self.start_check)
+        self.overview_page.preview_requested.connect(self.start_preview)
         self.folders_page.changed.connect(self._save_folders)
         self.storage_page.changed.connect(self._save_storage)
         self.schedule_page.changed.connect(self._save_schedule)
@@ -129,6 +130,7 @@ class MainWindow(QMainWindow):
         self.job.progress.connect(self._on_progress)
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
         self.backend.check_finished.connect(self._on_check_finished)
+        self.backend.dry_run_ready.connect(self._on_dry_run_ready)
         self.backend.operation_finished.connect(self._on_operation_finished)
         self.scheduler.backup_due.connect(self.start_backup)
 
@@ -298,6 +300,36 @@ class MainWindow(QMainWindow):
         except BackendError as exc:
             QMessageBox.warning(self, "Packrat Backup", str(exc))
 
+    def start_preview(self) -> None:
+        """Dry-run the next backup and show an estimate (#19)."""
+        if self.backend.is_busy():
+            return
+        if not self.settings.folders:
+            QMessageBox.information(
+                self, "Packrat Backup", "Choose at least one folder to back up first."
+            )
+            return
+        if not load_password() and not self.backend.has_password():
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "No backup password is stored. Please complete the first-run setup.",
+            )
+            return
+        if not self.backend.has_password():
+            self._apply_password_from_store()
+        try:
+            self.overview_page.set_previewing(True)
+            self.overview_page.clear_preview()
+            self.backend.preview_backup()
+        except (BackendError, ResticProcessError) as exc:
+            self.overview_page.set_previewing(False)
+            QMessageBox.warning(self, "Packrat Backup", f"Could not preview the backup: {exc}")
+
+    def _on_dry_run_ready(self, summary: dict) -> None:
+        self.overview_page.set_previewing(False)
+        self.overview_page.set_preview_result(summary)
+
     def start_check(self) -> None:
         if self.backend.is_busy():
             return
@@ -428,6 +460,12 @@ class MainWindow(QMainWindow):
 
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._last_operation = operation
+        if operation == "dry-run":
+            self.overview_page.set_previewing(False)
+            if not success:
+                self.overview_page.clear_preview()
+                QMessageBox.warning(self, "Packrat Backup", f"Backup preview failed: {message}")
+            return
         if operation == "snapshots" and not success:
             self.restore_page.set_loading(False)
         elif operation == "ls" and not success:
