@@ -30,7 +30,6 @@ class BackupBackend(QObject):
     remotes_ready = pyqtSignal(list)
     files_ready = pyqtSignal(list)
     check_finished = pyqtSignal(bool, str)
-    dry_run_ready = pyqtSignal(dict)
 
     def __init__(self, settings: Settings, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -44,7 +43,6 @@ class BackupBackend(QObject):
         self.restic.snapshots_listed.connect(self._on_snapshots)
         self.restic.files_listed.connect(self._on_files)
         self.rclone.remotes_listed.connect(self._on_remotes)
-        self.restic.dry_run_ready.connect(self._on_dry_run_ready)
 
     def _backup_excludes(self) -> list:
         excludes = list(self.settings.exclude_patterns)
@@ -100,19 +98,6 @@ class BackupBackend(QObject):
             self._password,
             self.settings.folders,
             self._backup_excludes(),
-        )
-
-    def preview_backup(self) -> None:
-        """Dry-run the next backup and report what would be uploaded (#19)."""
-        if not self.settings.folders:
-            raise BackendError("No folders selected to back up")
-        self.prepare()
-        self.restic.backup(
-            self.repo_location(),
-            self._password,
-            self.settings.folders,
-            self._backup_excludes(),
-            dry_run=True,
         )
 
     def _repo_exists(self) -> bool:
@@ -205,6 +190,3 @@ class BackupBackend(QObject):
 
     def _on_remotes(self, remotes: list) -> None:
         self.remotes_ready.emit(remotes)
-
-    def _on_dry_run_ready(self, summary: dict) -> None:
-        self.dry_run_ready.emit(summary)
