@@ -63,3 +63,47 @@ def test_list_helpers():
     assert _to_str_list("a, b ,,c") == ["a", "b", "c"]
     assert _to_str_list(["x", ""]) == ["x"]
     assert _to_int_list("1, 2, nope") == [1, 2]
+
+
+def test_settings_round_trip_with_commas():
+    s = Settings()
+    s.folders = ["/home/user/My, Folder", "/home/user/Plain"]
+    s.ignored_folders = ["/home/user/other, dir"]
+    s.exclude_patterns = ["~/.cache", "**/*,comma*"]
+    s.schedule.weekdays = [0, 3]
+    s.save()
+    s2 = Settings()
+    assert s2.folders == ["/home/user/My, Folder", "/home/user/Plain"]
+    assert s2.ignored_folders == ["/home/user/other, dir"]
+    assert s2.exclude_patterns == ["~/.cache", "**/*,comma*"]
+    assert s2.schedule.weekdays == [0, 3]
+
+
+def test_settings_migrate_legacy_comma_joined():
+    s = Settings()
+    s._settings.setValue("folders", "/home/a,/home/b")
+    s._settings.setValue("exclude_patterns", "~/.cache,~/.local/share/Trash")
+    s._settings.setValue("schedule_weekdays", "0,1,2")
+    s._load()
+    assert s.folders == ["/home/a", "/home/b"]
+    assert s.exclude_patterns == ["~/.cache", "~/.local/share/Trash"]
+    assert s.schedule.weekdays == [0, 1, 2]
+    # Saving migrates to the JSON encoding.
+    s.save()
+    s2 = Settings()
+    assert s2.folders == ["/home/a", "/home/b"]
+    assert s2.schedule.weekdays == [0, 1, 2]
+
+
+def test_settings_decode_garbage_falls_back():
+    s = Settings()
+    s._settings.setValue("folders", "[broken json")
+    s._load()
+    assert isinstance(s.folders, list)
+
+
+def test_settings_decode_empty():
+    s = Settings()
+    s._settings.setValue("folders", "")
+    s._load()
+    assert s.folders == []
