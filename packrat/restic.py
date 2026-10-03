@@ -128,8 +128,26 @@ class ResticRunner(QObject):
     def prune(self, repo: str, password: str, keep_args: List[str]) -> None:
         self._launch(repo, password, ["forget", "--prune"] + keep_args, "prune")
 
-    def check(self, repo: str, password: str) -> None:
-        self._launch(repo, password, ["check"], "check")
+    def _check_args(self, read_data: str) -> List[str]:
+        args = ["check"]
+        if read_data == "full":
+            args.append("--read-data")
+        elif read_data == "sample":
+            args.append("--read-data-subset=10%")
+        return args
+
+    def check(self, repo: str, password: str, read_data: str = "off") -> None:
+        """Manual integrity check; read_data off/sample/full re-reads data blobs."""
+        self._launch(repo, password, self._check_args(read_data), "check")
+
+    def verify(self, repo: str, password: str, read_data: str = "sample") -> None:
+        """Post-backup restorability proof (#28).
+
+        Uses the same restic arguments as check(); only the operation name
+        differs, so the result updates the verified-restore state instead of
+        the manual repository-check UI.
+        """
+        self._launch(repo, password, self._check_args(read_data), "verify")
 
     # ------------------------------------------------------------------ plumbing
     def _on_stdout(self, proc: QProcess) -> None:
@@ -291,6 +309,7 @@ def _result_message(operation: str, success: bool, exit_code: int, stderr: str) 
         "init": "Repository initialised",
         "backup": "Backup complete",
         "dry-run": "Backup preview complete",
+        "verify": "Backup verified restorable",
         "snapshots": "Snapshots listed",
         "ls": "Snapshot contents listed",
         "restore": "Restore complete",

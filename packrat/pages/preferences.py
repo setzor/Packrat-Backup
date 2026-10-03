@@ -7,6 +7,7 @@ from typing import Optional
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -80,6 +81,23 @@ class PreferencesPage(QWidget):
         performance_layout.addStretch(1)
         root.addWidget(performance_box)
 
+        verify_box = QGroupBox("Verified restores")
+        verify_layout = QHBoxLayout(verify_box)
+        verify_layout.addWidget(QLabel("After each backup, prove it restorable by re-reading:"))
+        self._verify_combo = QComboBox()
+        self._verify_combo.addItem("A random sample of the data (recommended)", "sample")
+        self._verify_combo.addItem("All of the data (slowest, most thorough)", "full")
+        self._verify_combo.addItem("Nothing (turn verification off)", "off")
+        self._verify_combo.setToolTip(
+            "Verification reads back data after each backup and confirms its "
+            "checksums, so Packrat can prove the backup is restorable instead "
+            "of trusting it. The sample mode reads a random 10% of data "
+            "packs — a good balance of safety and speed for large repositories."
+        )
+        self._verify_combo.currentIndexChanged.connect(self._on_changed)
+        verify_layout.addWidget(self._verify_combo)
+        verify_layout.addStretch(1)
+        root.addWidget(verify_box)
         root.addStretch(1)
 
     def _on_changed(self) -> None:
@@ -96,10 +114,15 @@ class PreferencesPage(QWidget):
         self._restore_refresh_spin.blockSignals(True)
         self._restore_refresh_spin.setValue(int(settings.restore_refresh_minutes))
         self._restore_refresh_spin.blockSignals(False)
+        self._verify_combo.blockSignals(True)
+        index = self._verify_combo.findData(settings.verify_after_backup)
+        self._verify_combo.setCurrentIndex(index if index >= 0 else 0)
+        self._verify_combo.blockSignals(False)
 
     def save(self):
         return {
             "close_to_tray": self._close_to_tray_check.isChecked(),
             "run_at_startup": self._run_at_startup_check.isChecked(),
             "restore_refresh_minutes": self._restore_refresh_spin.value(),
+            "verify_after_backup": self._verify_combo.currentData(),
         }

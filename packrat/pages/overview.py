@@ -105,10 +105,12 @@ class OverviewPage(QWidget):
         self._next_tile = _StatTile("Next backup")
         self._schedule_tile = _StatTile("Schedule")
         self._dest_tile = _StatTile("Destination")
+        self._verified_tile = _StatTile("Last verified restore")
         grid.addWidget(self._last_tile, 0, 0)
         grid.addWidget(self._next_tile, 0, 1)
         grid.addWidget(self._schedule_tile, 1, 0)
         grid.addWidget(self._dest_tile, 1, 1)
+        grid.addWidget(self._verified_tile, 2, 0)
         root.addWidget(info_box)
 
         self._progress_text = QLabel("")
@@ -161,11 +163,13 @@ class OverviewPage(QWidget):
         schedule: str = "",
         badge_state: str = "warn",
         badge_label: str = "Not backed up yet",
+        verified: str = "never",
     ) -> None:
         self._last_tile.set_value(last_backup)
         self._next_tile.set_value(next_backup)
         self._schedule_tile.set_value(schedule or "—")
         self._dest_tile.set_value(destination)
+        self._verified_tile.set_value(verified)
         self._badge.set_state(badge_state)
         self._badge.setText(badge_label)
         if running:

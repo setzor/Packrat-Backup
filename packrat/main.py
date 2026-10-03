@@ -29,6 +29,7 @@ from .humanize import (
     schedule_summary,
 )
 from .jobs import BackupJob
+from .notify import notify_error
 from .pages import (
     AboutPage,
     FoldersPage,
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
         self._last_operation: str = ""
         self._snapshots_loaded_at: Optional[_dt.datetime] = None
         self._snapshots_loaded_after_backup: str = ""
+        self._verify_pending: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -131,6 +133,7 @@ class MainWindow(QMainWindow):
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
         self.backend.check_finished.connect(self._on_check_finished)
         self.backend.dry_run_ready.connect(self._on_dry_run_ready)
+        self.backend.verify_finished.connect(self._on_verify_finished)
         self.backend.operation_finished.connect(self._on_operation_finished)
         self.scheduler.backup_due.connect(self.start_backup)
 
@@ -274,6 +277,7 @@ class MainWindow(QMainWindow):
         self.settings.close_to_tray = data["close_to_tray"]
         self.settings.run_at_startup = data["run_at_startup"]
         self.settings.restore_refresh_minutes = data["restore_refresh_minutes"]
+        self.settings.verify_after_backup = data["verify_after_backup"]
         self.settings.save()
         update_autostart(self.settings.run_at_startup)
 
@@ -447,7 +451,9 @@ class MainWindow(QMainWindow):
     def _maybe_auto_prune(self, operation: str, success: bool, _message: str) -> None:
         if operation != "backup" or not success:
             return
+        self._verify_pending = self.settings.verify_after_backup != "off"
         if not self.settings.auto_prune:
+            self._maybe_start_verification()
             return
         if self.job.is_running():
             return
@@ -457,6 +463,45 @@ class MainWindow(QMainWindow):
         if self.job.start_prune():
             self.schedule_page.set_cleaning(True)
             self.tray.set_state(running=True, status_text="Cleaning up…")
+            return
+        self._maybe_start_verification()
+
+    def _maybe_start_verification(self) -> None:
+        """Run the post-backup restorability proof once nothing else is running (#28)."""
+        if not self._verify_pending:
+            return
+        self._verify_pending = False
+        if self.job.is_running() or self.backend.is_busy():
+            return
+        if not self.backend.has_password():
+            return
+        log.info("Verified restores: checking the fresh backup")
+        self.tray.set_state(running=True, status_text="Verifying backup…")
+        try:
+            self.backend.verify_backup()
+        except (BackendError, ResticProcessError) as exc:
+            log.warning("Could not verify backup: %s", exc)
+            self.tray.set_state(running=False, status_text="Packrat Backup")
+
+    def _on_verify_finished(self, success: bool, message: str) -> None:
+        self.settings.last_verified_time = _dt.datetime.now().isoformat(timespec="seconds")
+        self.settings.last_verified_ok = success
+        self.settings.save()
+        self.tray.set_state(running=False, status_text="Packrat Backup")
+        self._refresh_overview()
+        if success:
+            self.tray.show_message(
+                "Packrat Backup", "Backup verified: the repository is restorable."
+            )
+        else:
+            notify_error("Packrat Backup", f"Backup verification FAILED: {message}")
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "Packrat could not prove the latest backup restorable.\n\n"
+                "The backup data may be damaged; consider checking your "
+                f"destination.\n\n{message}",
+            )
 
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._last_operation = operation
@@ -568,6 +613,7 @@ class MainWindow(QMainWindow):
         self.overview_page.set_backup_enabled(True)
         self._refresh_overview()
         self.tray.set_state(running=False, status_text="Packrat Backup")
+        self._maybe_start_verification()
         if success:
             self.tray.show_message("Packrat Backup", "Cleanup finished successfully.")
         else:
@@ -602,6 +648,18 @@ class MainWindow(QMainWindow):
             destination = self.settings.backend_summary()
         except Exception:
             destination = "not configured"
+        verified_dt = None
+        if self.settings.last_verified_time:
+            try:
+                verified_dt = _dt.datetime.fromisoformat(self.settings.last_verified_time)
+            except ValueError:
+                verified_dt = None
+        if verified_dt is None:
+            verified_text = "never"
+        elif not self.settings.last_verified_ok:
+            verified_text = f"failed {describe_past(verified_dt)}"
+        else:
+            verified_text = describe_past(verified_dt)
         status = backup_status(
             last_dt,
             nxt if not running else None,
@@ -615,6 +673,7 @@ class MainWindow(QMainWindow):
             schedule=schedule_text,
             badge_state=status["state"],
             badge_label=status["label"],
+            verified=verified_text,
         )
         self.tray.set_state(
             running=running,

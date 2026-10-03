@@ -30,6 +30,7 @@ class BackupBackend(QObject):
     remotes_ready = pyqtSignal(list)
     files_ready = pyqtSignal(list)
     check_finished = pyqtSignal(bool, str)
+    verify_finished = pyqtSignal(bool, str)
     dry_run_ready = pyqtSignal(dict)
 
     def __init__(self, settings: Settings, parent: Optional[QObject] = None) -> None:
@@ -170,6 +171,13 @@ class BackupBackend(QObject):
     def check(self) -> None:
         self.restic.check(self.repo_location(), self._password)
 
+    def verify_backup(self) -> None:
+        """Prove the latest backup restorable (#28) using the configured mode."""
+        mode = self.settings.verify_after_backup
+        if mode == "off":
+            return
+        self.restic.verify(self.repo_location(), self._password, mode)
+
     def is_busy(self) -> bool:
         return self.restic.is_running() or self.rclone.is_running()
 
@@ -194,6 +202,8 @@ class BackupBackend(QObject):
         operation = self.restic._operation
         if operation == "check":
             self.check_finished.emit(success, message)
+        elif operation == "verify":
+            self.verify_finished.emit(success, message)
         else:
             self.operation_finished.emit(operation, success, message)
 
