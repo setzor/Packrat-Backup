@@ -143,9 +143,9 @@ class BackupBackend(QObject):
     def list_snapshot_files(self, snapshot_id: str) -> None:
         self.restic.list_files(self.repo_location(), self._password, snapshot_id)
 
-    def restore_snapshot(self, snapshot_id: str, target: str) -> None:
+    def restore_snapshot(self, snapshot_id: str, target: str, includes=None) -> None:
         os.makedirs(os.path.expanduser(target), exist_ok=True)
-        self.restic.restore(self.repo_location(), self._password, snapshot_id, target)
+        self.restic.restore(self.repo_location(), self._password, snapshot_id, target, includes)
 
     def prune(self) -> None:
         self.restic.prune(
