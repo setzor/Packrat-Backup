@@ -96,3 +96,23 @@ def test_scheduler_missed_backup_detection(qapp):
     s.set_paused(False)
     s.config().mode = ScheduleMode.OFF
     assert not s.missed_backup(dt.datetime(2026, 9, 28, 8, 0), now)
+
+
+def test_previous_run_time_weekly_after_long_absence():
+    # Issue #44: Packrat not running for weeks must still find the missed slot.
+    # Thu 8 Oct 2026, Monday 12:00 slots, last run 5 weeks ago.
+    now = dt.datetime(2026, 10, 8, 10, 0)
+    cfg = _cfg(ScheduleMode.WEEKLY, "12:00", weekdays=[0])
+    prev = previous_run_time(cfg, now)
+    assert prev == dt.datetime(2026, 10, 5, 12, 0)
+    s = Scheduler(cfg)
+    assert s.missed_backup(dt.datetime(2026, 9, 2, 12, 0), now)
+    # Same even after a very long absence (years).
+    assert s.missed_backup(dt.datetime(2023, 10, 8, 12, 0), now)
+
+
+def test_previous_run_time_weekly_invalid_weekdays_is_none():
+    # Corrupted/hand-edited settings must not silently fall back to Monday.
+    cfg = _cfg(ScheduleMode.WEEKLY, "12:00", weekdays=[7, 8])
+    assert previous_run_time(cfg, dt.datetime(2026, 10, 8, 10, 0)) is None
+    assert next_run_time(cfg, dt.datetime(2026, 10, 8, 10, 0)) is None

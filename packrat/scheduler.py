@@ -29,12 +29,12 @@ def next_run_time(
             return today
         return today + _dt.timedelta(days=1)
     if cfg.mode is ScheduleMode.WEEKLY:
-        weekdays = sorted(set(cfg.weekdays)) or [1]
+        weekdays = _valid_weekdays(cfg.weekdays)
+        if not weekdays:
+            return None
         for offset in range(8):
             candidate = today + _dt.timedelta(days=offset)
-            if candidate.weekday() not in weekdays:
-                continue
-            if candidate > now:
+            if candidate.weekday() in weekdays and candidate > now:
                 return candidate
         return None
     return None
@@ -52,15 +52,28 @@ def previous_run_time(
     if cfg.mode is ScheduleMode.DAILY:
         return today if today <= now else today - _dt.timedelta(days=1)
     if cfg.mode is ScheduleMode.WEEKLY:
-        weekdays = sorted(set(cfg.weekdays)) or [1]
+        weekdays = _valid_weekdays(cfg.weekdays)
+        if not weekdays:
+            return None
         for offset in range(8):
             candidate = today - _dt.timedelta(days=offset)
-            if candidate.weekday() not in weekdays:
-                continue
-            if candidate <= now:
+            if candidate.weekday() in weekdays and candidate <= now:
                 return candidate
         return None
     return None
+
+
+def _valid_weekdays(weekdays) -> tuple:
+    """Normalise the configured weekday list to valid Python weekday numbers."""
+    values = set()
+    for day in weekdays or []:
+        try:
+            day = int(day)
+        except (TypeError, ValueError):
+            continue
+        if 0 <= day <= 6:
+            values.add(day)
+    return tuple(sorted(values))
 
 
 def _parse_time(value: str) -> tuple:
