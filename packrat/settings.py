@@ -74,6 +74,7 @@ class Settings:
         "verify_after_backup",
         "last_verified_time",
         "last_verified_ok",
+        "last_verified_snapshot_id",
     )
 
     def __init__(self) -> None:
@@ -104,6 +105,7 @@ class Settings:
         self.verify_after_backup: str = "sample"
         self.last_verified_time: str = ""
         self.last_verified_ok: bool = False
+        self.last_verified_snapshot_id: str = ""
         self._load()
 
     def _expand(self, path: str) -> str:
@@ -155,6 +157,7 @@ class Settings:
         self.verify_after_backup = verify if verify in ("off", "sample", "full") else "sample"
         self.last_verified_time = s.value("last_verified_time", "", type=str)
         self.last_verified_ok = to_bool(s.value("last_verified_ok", False, type=bool))
+        self.last_verified_snapshot_id = s.value("last_verified_snapshot_id", "", type=str)
 
     def save(self) -> None:
         s = self._settings
@@ -185,6 +188,7 @@ class Settings:
         s.setValue("verify_after_backup", self.verify_after_backup)
         s.setValue("last_verified_time", self.last_verified_time)
         s.setValue("last_verified_ok", self.last_verified_ok)
+        s.setValue("last_verified_snapshot_id", self.last_verified_snapshot_id)
         s.sync()
 
     def add_folder(self, path: str) -> None:

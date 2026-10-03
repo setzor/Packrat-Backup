@@ -17,11 +17,25 @@ from PyQt6.QtWidgets import (
 
 from ..activity import load_runs
 
+_OPERATION_LABELS = {
+    "backup": "Backup",
+    "restore": "Restore",
+    "prune": "Cleanup",
+    "verify": "Verify backup",
+    "check": "Check repository",
+    "dry-run": "Preview",
+}
+
 
 def _status_text(entry: dict) -> str:
     if entry.get("success"):
         return "Succeeded"
     return "Failed"
+
+
+def _operation_text(entry: dict) -> str:
+    operation = str(entry.get("operation", ""))
+    return _OPERATION_LABELS.get(operation, operation)
 
 
 def _duration_text(entry: dict) -> str:
@@ -51,7 +65,7 @@ class HistoryPage(QWidget):
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
         root.addWidget(title)
 
-        hint = QLabel("Recent backup and restore runs, newest first.")
+        hint = QLabel("Recent backup, restore, cleanup and verification runs, newest first.")
         hint.setStyleSheet("color: #666;")
         root.addWidget(hint)
 
@@ -59,13 +73,16 @@ class HistoryPage(QWidget):
         self._refresh_button.clicked.connect(self.refresh_requested.emit)
         root.addWidget(self._refresh_button)
 
-        self._table = QTableWidget(0, 4)
-        self._table.setHorizontalHeaderLabels(["Started", "Operation", "Duration", "Status"])
+        self._table = QTableWidget(0, 5)
+        self._table.setHorizontalHeaderLabels(
+            ["Started", "Operation", "Snapshot", "Duration", "Status"]
+        )
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -89,10 +106,11 @@ class HistoryPage(QWidget):
             date_part, _, time_part = started.partition("T")
             shown = f"{date_part} {time_part[:8]}".strip() or started
             self._table.setItem(row, 0, QTableWidgetItem(shown))
-            self._table.setItem(row, 1, QTableWidgetItem(str(entry.get("operation", ""))))
-            self._table.setItem(row, 2, QTableWidgetItem(_duration_text(entry)))
-            self._table.setItem(row, 3, QTableWidgetItem(_status_text(entry)))
-            self._table.item(row, 3).setData(1, entry)
+            self._table.setItem(row, 1, QTableWidgetItem(_operation_text(entry)))
+            self._table.setItem(row, 2, QTableWidgetItem(str(entry.get("snapshot_id") or "")))
+            self._table.setItem(row, 3, QTableWidgetItem(_duration_text(entry)))
+            self._table.setItem(row, 4, QTableWidgetItem(_status_text(entry)))
+            self._table.item(row, 4).setData(1, entry)
         self._detail_label.setText(f"{len(runs)} run{'s' if len(runs) != 1 else ''} shown.")
 
     def _on_selection(self, current, _previous) -> None:
@@ -100,7 +118,7 @@ class HistoryPage(QWidget):
             self._detail_label.setText("")
             return
         row = current.row()
-        item = self._table.item(row, 3)
+        item = self._table.item(row, 4)
         if item is None:
             return
         entry = item.data(1)

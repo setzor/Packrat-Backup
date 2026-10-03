@@ -24,6 +24,7 @@ def log_run(
     message: str,
     started_at: str,
     duration_seconds: Optional[float] = None,
+    snapshot_id: Optional[str] = "",
 ) -> None:
     """Append one run record to the activity log."""
     try:
@@ -35,6 +36,7 @@ def log_run(
             "message": message,
             "started_at": started_at,
             "duration_seconds": round(duration_seconds, 1) if duration_seconds else None,
+            "snapshot_id": snapshot_id or None,
         }
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry) + "\n")

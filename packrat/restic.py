@@ -38,6 +38,7 @@ class ResticRunner(QObject):
         self._process: Optional[QProcess] = None
         self._operation = ""
         self._buffer = ""
+        self.last_snapshot_id: str = ""
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -172,6 +173,9 @@ class ResticRunner(QObject):
             percent = int(float(msg.get("percent_done") or 0) * 100)
             self.progress.emit(percent, _status_text(msg))
         elif kind == "summary":
+            snapshot_id = msg.get("snapshot_id")
+            if snapshot_id:
+                self.last_snapshot_id = str(snapshot_id)
             files = msg.get("total_files_processed", 0)
             size = msg.get("data_added", 0)
             self.progress.emit(

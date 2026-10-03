@@ -181,6 +181,11 @@ class BackupBackend(QObject):
     def is_busy(self) -> bool:
         return self.restic.is_running() or self.rclone.is_running()
 
+    @property
+    def last_snapshot_id(self) -> str:
+        """Snapshot ID of the most recent backup, for activity logging."""
+        return self.restic.last_snapshot_id
+
     # ------------------------------------------------------------------ signals
     def _on_restic_finished(self, success: bool, message: str) -> None:
         if self._initing_for_backup and self.restic._operation == "init":
