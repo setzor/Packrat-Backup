@@ -38,6 +38,7 @@ class ResticRunner(QObject):
         self._process: Optional[QProcess] = None
         self._operation = ""
         self._buffer = ""
+        self._last_percent: Optional[int] = None
         self.last_snapshot_id: str = ""
 
     # ------------------------------------------------------------------ helpers
@@ -84,6 +85,7 @@ class ResticRunner(QObject):
         self._process = proc
         self._operation = operation
         self._buffer = ""
+        self._last_percent: Optional[int] = None
         proc.start()
 
     # ------------------------------------------------------------------ operations
@@ -160,10 +162,17 @@ class ResticRunner(QObject):
 
     def _on_stderr(self, proc: QProcess) -> None:
         data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
+        self._on_stderr_text(data)
+
+    def _on_stderr_text(self, data: str) -> None:
         for line in data.splitlines():
             stripped = line.strip()
-            if stripped:
+            if not stripped:
+                continue
+            if self._last_percent is None:
                 self.progress.emit(-1, stripped)
+            else:
+                self.progress.emit(self._last_percent, stripped)
 
     def _handle_backup_message(self, msg: Any) -> None:
         if not isinstance(msg, dict):
@@ -171,6 +180,9 @@ class ResticRunner(QObject):
         kind = msg.get("message_type")
         if kind == "status":
             percent = int(float(msg.get("percent_done") or 0) * 100)
+            if self._last_percent is not None:
+                percent = max(percent, self._last_percent)
+            self._last_percent = percent
             self.progress.emit(percent, _status_text(msg))
         elif kind == "summary":
             snapshot_id = msg.get("snapshot_id")
