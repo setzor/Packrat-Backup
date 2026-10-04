@@ -1,0 +1,41 @@
+name: DEB
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  debian-deb:
+    name: Debian 13 x86_64
+    runs-on: ubuntu-latest
+    container: debian:13
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git build-essential debhelper dh-python python3-all \
+            python3-setuptools pybuild-plugin-pyproject python3-pip \
+            desktop-file-utils appstream
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build DEB
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          VERSION=$(grep -m1 '^version' pyproject.toml | sed 's/.*"\(.*\)"/\1/')
+          sed -i "s/^packrat (.*) unstable/packrat (${VERSION}-1) unstable/" debian/changelog
+          dpkg-buildpackage -us -uc -b -rfakeroot
+          mkdir -p artifacts
+          mv ../packrat_${VERSION}-1_all.deb artifacts/
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+      - name: Validate desktop file and metainfo
+        run: |
+          desktop-file-validate org.packrat.Backup.desktop
+          appstreamcli validate org.packrat.Backup.metainfo.xml
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packrat-debian13-all
+          path: artifacts/
