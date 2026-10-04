@@ -17,8 +17,8 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             git build-essential debhelper dh-python python3-all \
-            python3-setuptools python3-pybuild-plugin \
-            desktop-file-utils libappstream-glib-bin
+            python3-setuptools python3-build-plugin \
+            desktop-file-utils libappstream-utils
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build DEB
@@ -33,7 +33,7 @@ jobs:
       - name: Validate desktop file and metainfo
         run: |
           desktop-file-validate org.packrat.Backup.desktop
-          appstream-util validate-relax org.packrat.Backup.metainfo.xml
+          appstreamcli validate --no-network org.packrat.Backup.metainfo.xml
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
