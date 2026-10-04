@@ -26,7 +26,10 @@
   </developer>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.2.0" date="2026-10-01">
+    <release version="0.2.0" date="2026-10-04">
+      <description><p>Feature release: new change detection warns loudly when a backup shows ransomware-like mass changes (Overview tile, red badge, urgent notification, configurable threshold in Preferences), and the Overview progress bar no longer flickers between spinner and percent during backups.</p></description>
+    </release>
+    <release version="0.1.2" date="2026-10-01">
       <description><p>Bug-fix and feature release: new backup history page, retention policy with auto-prune after backups, persistent schedule pause, faster Restore page with snapshot caching, and fixes for the nav page order, spurious saves during Preferences load, the stuck Clean Up button, all-zero retention prune safety, and restic launch error handling.</p></description>
     </release>
     <release version="0.1.1" date="2026-09-28">
