@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.1.2
+Version:        0.2.0
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
