@@ -17,7 +17,7 @@ jobs:
           apt-get update
           apt-get install -y --no-install-recommends \
             git build-essential debhelper dh-python python3-all \
-            python3-setuptools python3-pip \
+            python3-setuptools pybuild-plugin-pyproject python3-pip \
             desktop-file-utils appstream
       - name: Checkout
         uses: actions/checkout@v4
