@@ -1,14 +1,5 @@
 # Packrat Backup
 
-> [!CAUTION]
-> **This is a personal project, built for my own use.**
-> It is provided as-is, with **no warranty of any kind**, express or implied.
-> There is **no guarantee of data safety, integrity or recoverability**. Backup
-> software can fail silently, and a backup you have not tested restoring is not
-> a backup. **Use at your own risk** always verify your restores, and keep an
-> independent copy of anything irreplaceable. You alone are responsible for any
-> data loss or damage that may result from using this software.
-
 A KDE Plasma/Qt native backup application with OneDrive/Google Drive support.
 Easy to use and schedule, kinda bit like Déjà Dup, but Qt-er ;-)
 
@@ -28,27 +19,42 @@ Drive and many other providers.
 - **Scheduled** daily or weekly automatic backups, with a system tray agent
   and a "Back up now" button for the impatient.
 - **Restore browser** list snapshots (with the folders each one contains) and
-  restore any of them to any folder.
+  restore any of them to any folder — or just the individual files and folders
+  you need.
+- **Change detection** Packrat watches how much of your data changed in each
+  backup and warns loudly when a run looks like ransomware encryption or an
+  accidental mass edit.
+- **Verified restores** optionally re-read a sample of the data after each
+  backup to prove it restorable, with the result shown in the History page.
+- **Backup preview** see how many files the next backup would upload and how
+  big it would be, before running it.
+- **Backup history** a History page records every backup, restore, verify and
+  cleanup run.
 - **Retention policy** Déjà Dup-like retention knobs (hourly/daily/weekly/
   monthly/yearly counts) applied via `restic forget --prune`.
 
+## Installing
+
+Grab the latest [release](https://github.com/setzor/Packrat-Backup/releases) —
+RPM packages for Fedora and DEB packages for Debian/Ubuntu are built and tested
+in CI:
+
+```bash
+# Fedora
+sudo dnf install ./packrat-0.2.0-1.fc44.x86_64.rpm
+
+# Debian / Ubuntu
+sudo apt install ./packrat_0.2.0-1_all.deb
+```
+
+The packages depend on `restic` and `python3-pyqt6` (and recommend `rclone`
+and `python3-keyring`), so your package manager pulls those in automatically.
+
 ## Requirements
 
-- Python 3.9+ with PyQt6 (`pip install PyQt6`)
+- Python 3.9+ with PyQt6
 - `restic` (the backup engine)
 - `rclone` (only needed for cloud destinations)
-
-On Fedora:
-
-```bash
-sudo dnf install restic rclone python3-pyqt6 python3-keyring
-```
-
-On Debian/Ubuntu or KDE neon:
-
-```bash
-sudo apt install restic rclone python3-pyqt6 python3-keyring
-```
 
 ## Running from source
 
@@ -93,10 +99,15 @@ ruff check packrat tests
 The test-suite runs headless (`QT_QPA_PLATFORM=offscreen`) and will exercise a
 real restic init/backup/restore roundtrip when restic is installed.
 
-## Packaging bits
+## Packaging
+
+Packrat ships as both RPM and DEB, built in CI (Fedora 44 and Debian 13
+containers) on every push:
 
 - Desktop entry: `org.packrat.Backup.desktop`
 - AppStream metadata: `org.packrat.Backup.metainfo.xml`
+- RPM spec: `packrat.spec`
+- Debian packaging: `debian/`
 - Icons: `icons/` (scalable SVG + 128px PNG)
 
 ## License
