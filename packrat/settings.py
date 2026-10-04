@@ -75,6 +75,9 @@ class Settings:
         "last_verified_time",
         "last_verified_ok",
         "last_verified_snapshot_id",
+        "change_detection",
+        "changed_files_threshold",
+        "last_change_status",
     )
 
     def __init__(self) -> None:
@@ -106,6 +109,9 @@ class Settings:
         self.last_verified_time: str = ""
         self.last_verified_ok: bool = False
         self.last_verified_snapshot_id: str = ""
+        self.change_detection: bool = True
+        self.changed_files_threshold: int = 35
+        self.last_change_status: str = ""
         self._load()
 
     def _expand(self, path: str) -> str:
@@ -158,6 +164,9 @@ class Settings:
         self.last_verified_time = s.value("last_verified_time", "", type=str)
         self.last_verified_ok = to_bool(s.value("last_verified_ok", False, type=bool))
         self.last_verified_snapshot_id = s.value("last_verified_snapshot_id", "", type=str)
+        self.change_detection = to_bool(s.value("change_detection", True, type=bool))
+        self.changed_files_threshold = s.value("changed_files_threshold", 35, type=int)
+        self.last_change_status = s.value("last_change_status", "", type=str)
 
     def save(self) -> None:
         s = self._settings
@@ -189,6 +198,9 @@ class Settings:
         s.setValue("last_verified_time", self.last_verified_time)
         s.setValue("last_verified_ok", self.last_verified_ok)
         s.setValue("last_verified_snapshot_id", self.last_verified_snapshot_id)
+        s.setValue("change_detection", self.change_detection)
+        s.setValue("changed_files_threshold", self.changed_files_threshold)
+        s.setValue("last_change_status", self.last_change_status)
         s.sync()
 
     def add_folder(self, path: str) -> None:

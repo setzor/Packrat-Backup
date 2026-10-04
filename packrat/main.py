@@ -279,6 +279,8 @@ class MainWindow(QMainWindow):
         self.settings.run_at_startup = data["run_at_startup"]
         self.settings.restore_refresh_minutes = data["restore_refresh_minutes"]
         self.settings.verify_after_backup = data["verify_after_backup"]
+        self.settings.change_detection = data["change_detection"]
+        self.settings.changed_files_threshold = data["changed_files_threshold"]
         self.settings.save()
         update_autostart(self.settings.run_at_startup)
 
@@ -677,6 +679,8 @@ class MainWindow(QMainWindow):
             nxt if not running else None,
             paused=self.scheduler.is_paused(),
         )
+        if self.settings.last_change_status == "suspicious":
+            status = {"state": "error", "label": "Unusual changes detected!"}
         self.overview_page.set_state(
             last_text,
             next_text,
@@ -686,6 +690,7 @@ class MainWindow(QMainWindow):
             badge_state=status["state"],
             badge_label=status["label"],
             verified=verified_text,
+            change_status=self.settings.last_change_status,
         )
         self.tray.set_state(
             running=running,

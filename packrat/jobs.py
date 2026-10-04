@@ -11,6 +11,7 @@ from PyQt6.QtCore import QObject, pyqtSignal
 
 from .activity import log_run
 from .backend import BackupBackend
+from .change_detect import analyze_summary, record_result
 from .notify import notify, notify_error
 from .settings import Settings
 
@@ -107,6 +108,7 @@ class BackupJob(QObject):
         if operation == "backup" and success:
             now = _dt.datetime.now()
             self.settings.last_backup_time = now.isoformat(timespec="seconds")
+            self._analyze_changes()
             self.settings.save()
             notify("Packrat Backup", "Backup finished successfully.")
         elif operation == "backup":
@@ -114,3 +116,26 @@ class BackupJob(QObject):
         elif operation == "restore" and success:
             notify("Packrat Backup", "Restore finished successfully.")
         self.finished.emit(success, message)
+
+    def _analyze_changes(self) -> None:
+        """Post-backup mass-change detection (issue #29)."""
+        if not self.settings.change_detection:
+            return
+        summary = getattr(self.backend.restic, "last_backup_summary", {})
+        try:
+            report = analyze_summary(summary, float(self.settings.changed_files_threshold))
+        except Exception:
+            log.exception("Change analysis failed")
+            return
+        record_result(report, snapshot_id=self.backend.last_snapshot_id)
+        self.settings.last_change_status = report.status
+        log_run(
+            "change-check",
+            report.status != "suspicious",
+            report.reason
+            or f"{report.changed_files} of {report.total_files} files changed "
+            f"({report.changed_files_ratio:.0f}%)",
+            _dt.datetime.now().isoformat(timespec="seconds"),
+        )
+        if report.status == "suspicious":
+            notify_error("Packrat Backup", f"Unusual changes detected! {report.reason}")
