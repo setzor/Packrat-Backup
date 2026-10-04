@@ -77,7 +77,14 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 - Add change detection: warn when a backup shows mass-change patterns (issue #29 stage 1)
 - Add Overview "Change check" tile, red badge and urgent notification on suspicious runs
 - Add change detection on/off and threshold settings to Preferences
+- Add per-file and per-folder restore from the snapshot browser (issue #16)
+- Add backup preview with dry-run size estimate (issue #19)
+- Add verified restores: post-backup restorability proof (issue #28)
+- Show which snapshots were verified on the History page
 - Fix Overview progress bar flickering between spinner and percent during backups
+- Fix rclone repository probing attempting init with an invalid location (issue #43)
+- Fix weekly catch-up missing schedules after absences longer than 8 days (issue #44)
+- Fix settings lists not round-tripping entries containing commas (issue #45)
 
 * Thu Oct 01 2026 Packrat Backup contributors <noreply@github.com> - 0.1.2-1
 - Guard all-zero retention policy so prune can never delete every snapshot
