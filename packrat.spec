@@ -73,6 +73,12 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
+* Sun Oct 04 2026 Packrat Backup contributors <noreply@github.com> - 0.2.0-1
+- Add change detection: warn when a backup shows mass-change patterns (issue #29 stage 1)
+- Add Overview "Change check" tile, red badge and urgent notification on suspicious runs
+- Add change detection on/off and threshold settings to Preferences
+- Fix Overview progress bar flickering between spinner and percent during backups
+
 * Thu Oct 01 2026 Packrat Backup contributors <noreply@github.com> - 0.1.2-1
 - Guard all-zero retention policy so prune can never delete every snapshot
 - Wire restic QProcess errorOccurred so a failed launch no longer leaves the UI stuck
