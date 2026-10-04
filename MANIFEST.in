@@ -4,3 +4,8 @@ include org.packrat.Backup.desktop
 include org.packrat.Backup.metainfo.xml
 include packrat.spec
 recursive-include packrat/assets *.svg
+include debian/control
+include debian/changelog
+include debian/compat
+include debian/rules
+include debian/packrat.install

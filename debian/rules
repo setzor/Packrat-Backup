@@ -1,0 +1,18 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME = packrat
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_install:
+	dh_auto_install
+	install -D -m 0644 org.packrat.Backup.desktop \
+		debian/packrat/usr/share/applications/org.packrat.Backup.desktop
+	install -D -m 0644 org.packrat.Backup.metainfo.xml \
+		debian/packrat/usr/share/metainfo/org.packrat.Backup.metainfo.xml
+	install -D -m 0644 packrat/assets/packrat-mascot.svg \
+		debian/packrat/usr/share/icons/hicolor/scalable/apps/org.packrat.Backup.svg
+
+override_dh_auto_test:
+	# Tests need a Qt GUI environment; run via CI instead.

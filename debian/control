@@ -1,0 +1,27 @@
+Source: packrat
+Section: utils
+Priority: optional
+Maintainer: Packrat Backup contributors <setzor@users.noreply.github.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools,
+               desktop-file-utils,
+               libappstream-glib-bin
+Standards-Version: 4.7.0
+Homepage: https://github.com/setzor/Packrat-Backup
+Rules-Requires-Root: no
+
+Package: packrat
+Architecture: all
+Depends: python3-packrat,
+         ${misc:Depends},
+         ${python3:Depends}
+Recommends: restic, rclone, python3-keyring
+Description: KDE Plasma/Qt native backup application with OneDrive/Google Drive support
+ Packrat Backup is a friendly, Qt-native backup application for the KDE
+ Plasma desktop, in the spirit of Deja Dup. It wraps the restic engine so
+ every backup is deduplicated, incremental and encrypted end to end.
+ Backups can be stored in a local folder or on OneDrive and Google Drive
+ through rclone. A built-in scheduler runs backups daily or weekly, and
+ a system tray agent keeps an eye on things in the background.
