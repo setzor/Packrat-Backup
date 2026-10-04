@@ -70,3 +70,38 @@ def test_restic_check_args(qapp):
     assert runner._check_args("off") == ["check"]
     assert runner._check_args("sample") == ["check", "--read-data-subset=10%"]
     assert runner._check_args("full") == ["check", "--read-data"]
+
+
+def test_backup_job_records_change_status(qapp, monkeypatch, tmp_path):
+    from packrat.change_detect import ChangeReport
+    from packrat.jobs import BackupJob
+
+    backend, settings = _backend(qapp)
+    job = BackupJob(settings, backend)
+    monkeypatch.setattr(
+        "packrat.jobs.analyze_summary",
+        lambda s, t: ChangeReport("suspicious", 80.0, 60.0, 1000, 800, "mass change"),
+    )
+    monkeypatch.setattr("packrat.jobs.record_result", lambda r, snapshot_id="": None)
+    monkeypatch.setattr("packrat.jobs.notify_error", lambda t, b: None)
+    monkeypatch.setattr("packrat.jobs.log_run", lambda *a, **k: None)
+    monkeypatch.setattr("packrat.settings.Settings.save", lambda self: None)
+    backend.restic.last_backup_summary = {"total_files_processed": 1000}
+    backend.restic.last_snapshot_id = "abc123"
+    job._on_operation_finished("backup", True, "ok")
+    assert settings.last_change_status == "suspicious"
+
+
+def test_backup_job_change_analysis_off(qapp, monkeypatch):
+    from packrat.jobs import BackupJob
+
+    backend, settings = _backend(qapp)
+    settings.change_detection = False
+    job = BackupJob(settings, backend)
+    called = []
+    monkeypatch.setattr("packrat.jobs.analyze_summary", lambda s, t: called.append(1))
+    monkeypatch.setattr("packrat.settings.Settings.save", lambda self: None)
+    backend.restic.last_backup_summary = {}
+    job._on_operation_finished("backup", True, "ok")
+    assert called == []
+    assert settings.last_change_status == ""

@@ -106,11 +106,13 @@ class OverviewPage(QWidget):
         self._schedule_tile = _StatTile("Schedule")
         self._dest_tile = _StatTile("Destination")
         self._verified_tile = _StatTile("Last verified restore")
+        self._change_tile = _StatTile("Change check")
         grid.addWidget(self._last_tile, 0, 0)
         grid.addWidget(self._next_tile, 0, 1)
         grid.addWidget(self._schedule_tile, 1, 0)
         grid.addWidget(self._dest_tile, 1, 1)
         grid.addWidget(self._verified_tile, 2, 0)
+        grid.addWidget(self._change_tile, 2, 1)
         root.addWidget(info_box)
 
         self._progress_text = QLabel("")
@@ -164,12 +166,14 @@ class OverviewPage(QWidget):
         badge_state: str = "warn",
         badge_label: str = "Not backed up yet",
         verified: str = "never",
+        change_status: str = "",
     ) -> None:
         self._last_tile.set_value(last_backup)
         self._next_tile.set_value(next_backup)
         self._schedule_tile.set_value(schedule or "—")
         self._dest_tile.set_value(destination)
         self._verified_tile.set_value(verified)
+        self._change_tile.set_value(self._change_text(change_status))
         self._badge.set_state(badge_state)
         self._badge.setText(badge_label)
         if running:
@@ -193,6 +197,16 @@ class OverviewPage(QWidget):
         self._progress_bar.setVisible(True)
         self._progress_text.setVisible(True)
         self._progress_text.setText(f"{percent}% — {message}" if message else f"{percent}%")
+
+    @staticmethod
+    def _change_text(status: str) -> str:
+        if status == "ok":
+            return "\u2713 Normal"
+        if status == "suspicious":
+            return "\u26a0 Unusual changes detected"
+        if status == "skipped":
+            return "No comparison yet"
+        return "\u2014"
 
     def clear_progress(self) -> None:
         self._progress_bar.setVisible(False)

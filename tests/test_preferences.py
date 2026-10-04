@@ -23,6 +23,8 @@ def test_preferences_page_roundtrip(qapp):
         "run_at_startup": False,
         "restore_refresh_minutes": 60,
         "verify_after_backup": "sample",
+        "change_detection": True,
+        "changed_files_threshold": 35,
     }
 
     page._close_to_tray_check.setChecked(True)
@@ -33,6 +35,8 @@ def test_preferences_page_roundtrip(qapp):
         "run_at_startup": True,
         "restore_refresh_minutes": 60,
         "verify_after_backup": "sample",
+        "change_detection": True,
+        "changed_files_threshold": 35,
     }
 
 

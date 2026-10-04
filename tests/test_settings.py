@@ -107,3 +107,18 @@ def test_settings_decode_empty():
     s._settings.setValue("folders", "")
     s._load()
     assert s.folders == []
+
+
+def test_change_detection_defaults_and_persistence(qapp):
+    s = Settings()
+    assert s.change_detection is True
+    assert s.changed_files_threshold == 35
+    assert s.last_change_status == ""
+    s.change_detection = False
+    s.changed_files_threshold = 60
+    s.last_change_status = "suspicious"
+    s.save()
+    s2 = Settings()
+    assert s2.change_detection is False
+    assert s2.changed_files_threshold == 60
+    assert s2.last_change_status == "suspicious"

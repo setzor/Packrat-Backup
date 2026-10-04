@@ -40,6 +40,7 @@ class ResticRunner(QObject):
         self._buffer = ""
         self._last_percent: Optional[int] = None
         self.last_snapshot_id: str = ""
+        self.last_backup_summary: dict = {}
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -86,6 +87,7 @@ class ResticRunner(QObject):
         self._operation = operation
         self._buffer = ""
         self._last_percent: Optional[int] = None
+        self.last_backup_summary = {}
         proc.start()
 
     # ------------------------------------------------------------------ operations
@@ -188,6 +190,7 @@ class ResticRunner(QObject):
             snapshot_id = msg.get("snapshot_id")
             if snapshot_id:
                 self.last_snapshot_id = str(snapshot_id)
+            self.last_backup_summary = dict(msg)
             files = msg.get("total_files_processed", 0)
             size = msg.get("data_added", 0)
             self.progress.emit(

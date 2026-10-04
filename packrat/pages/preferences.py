@@ -98,6 +98,25 @@ class PreferencesPage(QWidget):
         verify_layout.addWidget(self._verify_combo)
         verify_layout.addStretch(1)
         root.addWidget(verify_box)
+
+        change_box = QGroupBox("Change detection")
+        change_layout = QHBoxLayout(change_box)
+        self._change_check = QCheckBox("Warn when a backup changes more than:")
+        self._change_check.setToolTip(
+            "After each backup, Packrat compares how many files changed against "
+            "the previous snapshot. A sudden mass change can mean ransomware "
+            "encryption or an accidental edit, so Packrat warns loudly instead "
+            "of silently backing up the damage."
+        )
+        self._change_check.stateChanged.connect(self._on_changed)
+        change_layout.addWidget(self._change_check)
+        self._change_spin = QSpinBox()
+        self._change_spin.setRange(5, 100)
+        self._change_spin.setSuffix("% of files")
+        self._change_spin.valueChanged.connect(self._on_changed)
+        change_layout.addWidget(self._change_spin)
+        change_layout.addStretch(1)
+        root.addWidget(change_box)
         root.addStretch(1)
 
     def _on_changed(self) -> None:
@@ -118,6 +137,12 @@ class PreferencesPage(QWidget):
         index = self._verify_combo.findData(settings.verify_after_backup)
         self._verify_combo.setCurrentIndex(index if index >= 0 else 0)
         self._verify_combo.blockSignals(False)
+        self._change_check.blockSignals(True)
+        self._change_check.setChecked(settings.change_detection)
+        self._change_check.blockSignals(False)
+        self._change_spin.blockSignals(True)
+        self._change_spin.setValue(int(settings.changed_files_threshold))
+        self._change_spin.blockSignals(False)
 
     def save(self):
         return {
@@ -125,4 +150,6 @@ class PreferencesPage(QWidget):
             "run_at_startup": self._run_at_startup_check.isChecked(),
             "restore_refresh_minutes": self._restore_refresh_spin.value(),
             "verify_after_backup": self._verify_combo.currentData(),
+            "change_detection": self._change_check.isChecked(),
+            "changed_files_threshold": self._change_spin.value(),
         }

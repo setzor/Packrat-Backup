@@ -23,6 +23,7 @@ _OPERATION_LABELS = {
     "prune": "Cleanup",
     "verify": "Verify backup",
     "check": "Check repository",
+    "change-check": "Change check",
     "dry-run": "Preview",
 }
 
