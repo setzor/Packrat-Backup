@@ -389,7 +389,6 @@ _DEFAULT_RCLONE_ARGS = [
     "--stdio",
     "--checkers=16",
     "--fast-list",
-    "--dir-cache-time=48h",
     "--transfers={transfers}",
     "--buffer-size=32M",
 ]
