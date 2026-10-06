@@ -105,9 +105,7 @@ class BackupBackend(QObject):
             raise BackendError("No folders selected to back up")
         self.prepare()
         if not self._repo_exists():
-            self.restic.init(
-                self.repo_location(), self._password, options=self.cloud_options()
-            )
+            self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
             self._initing_for_backup = True
             return
         self.restic.backup(
@@ -181,9 +179,7 @@ class BackupBackend(QObject):
         return result
 
     def list_snapshots(self) -> None:
-        self.restic.snapshots(
-            self.repo_location(), self._password, options=self.cloud_options()
-        )
+        self.restic.snapshots(self.repo_location(), self._password, options=self.cloud_options())
 
     def list_snapshot_files(self, snapshot_id: str) -> None:
         self.restic.list_files(

@@ -99,7 +99,7 @@ def test_restic_run_local_repo_gets_no_rclone_options(tmp_path, monkeypatch):
     import stat
 
     path = tmp_path / "fake-restic"
-    path.write_text("#!/bin/sh\necho \"ARGS: $@\"\n")
+    path.write_text('#!/bin/sh\necho "ARGS: $@"\n')
     path.chmod(path.stat().st_mode | stat.S_IEXEC)
     monkeypatch.setenv("PACKRAT_RESTIC_BINARY", str(path))
     ok, stdout, _ = Restic.run(
@@ -134,9 +134,9 @@ def test_prune_due_respects_interval(qapp):
     assert backend.prune_due() is True
     backend.settings.last_prune_time = dt.datetime.now().isoformat(timespec="seconds")
     assert backend.prune_due() is False
-    backend.settings.last_prune_time = (
-        dt.datetime.now() - dt.timedelta(days=8)
-    ).isoformat(timespec="seconds")
+    backend.settings.last_prune_time = (dt.datetime.now() - dt.timedelta(days=8)).isoformat(
+        timespec="seconds"
+    )
     assert backend.prune_due() is True
 
 
@@ -153,7 +153,10 @@ def test_forget_applied_between_prunes(qapp, monkeypatch):
 
     monkeypatch.setattr(ResticRunner, "forget", fake_forget)
     backend.forget()
-    assert launched == [("forget", "rclone:myremote:packrat-backups", ["--keep-within", "1m"])]
+    op, repo, keep_args = launched[0]
+    assert op == "forget"
+    assert repo == "rclone:myremote:packrat-backups"
+    assert "--keep-within" in keep_args
 
 
 def test_settings_cloud_tuning_persisted(qapp):

@@ -59,7 +59,8 @@ def test_run_backup_probes_instead_of_local_only_check(backend, monkeypatch, tmp
 
 def test_repo_exists_true_when_config_probe_succeeds(backend, monkeypatch):
     monkeypatch.setattr(
-        "packrat.backend.Restic.run", lambda args, timeout=300, password="", options=None: (True, "{}", "")
+        "packrat.backend.Restic.run",
+        lambda args, timeout=300, password="", options=None: (True, "{}", ""),
     )
     assert backend._repo_exists() is True
 
@@ -67,7 +68,11 @@ def test_repo_exists_true_when_config_probe_succeeds(backend, monkeypatch):
 def test_repo_exists_false_on_exit_code_missing_message(backend, monkeypatch):
     monkeypatch.setattr(
         "packrat.backend.Restic.run",
-        lambda args, timeout=300, password="", options=None: (False, "", "Fatal: repository does not exist"),
+        lambda args, timeout=300, password="", options=None: (
+            False,
+            "",
+            "Fatal: repository does not exist",
+        ),
     )
     assert backend._repo_exists() is False
 
@@ -94,7 +99,8 @@ def test_repo_exists_false_on_other_rclone_error(backend, monkeypatch):
 
 def test_run_backup_backs_up_when_remote_repo_exists(backend, monkeypatch):
     monkeypatch.setattr(
-        "packrat.backend.Restic.run", lambda args, timeout=300, password="", options=None: (True, "{}", "")
+        "packrat.backend.Restic.run",
+        lambda args, timeout=300, password="", options=None: (True, "{}", ""),
     )
     launched = []
     monkeypatch.setattr(

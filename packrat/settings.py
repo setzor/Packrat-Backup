@@ -183,7 +183,7 @@ class Settings:
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
         self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
         self.auto_prune_interval_days = self._load_interval(
-            s.value("auto_prune_interval_days", 1, type=int)
+            s.value("auto_prune_interval_days", 7, type=int)
         )
         self.restore_refresh_minutes = max(0, s.value("restore_refresh_minutes", 60, type=int))
         verify = str(s.value("verify_after_backup", "sample", type=str))

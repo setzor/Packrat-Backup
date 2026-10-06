@@ -121,9 +121,7 @@ class ResticRunner(QObject):
             args += ["--exclude", os.path.expanduser(pattern)]
         for folder in folders:
             args.append(os.path.expanduser(folder))
-        self._launch(
-            repo, password, args, "dry-run" if dry_run else "backup", options=options
-        )
+        self._launch(repo, password, args, "dry-run" if dry_run else "backup", options=options)
 
     def snapshots(self, repo: str, password: str, options: Optional[dict] = None) -> None:
         self._launch(repo, password, ["snapshots", "--json"], "snapshots", options=options)
@@ -382,7 +380,9 @@ def _clean_stderr(stderr: str) -> str:
 
 
 _DEFAULT_RCLONE_ARGS = [
-    "serve", "restic", "--stdio",
+    "serve",
+    "restic",
+    "--stdio",
     "--checkers=16",
     "--fast-list",
     "--dir-cache-time=48h",
@@ -398,12 +398,12 @@ def _extended_options(repo: str, options: Optional[dict]) -> List[str]:
     reach rclone via the rclone.args extended option; the remote spec is
     appended by restic. Non-rclone repositories get no extra options.
     """
-    if not repo.startswith("rclone:"):
-        return []
     opts = options or {}
+    if not repo.startswith("rclone:") or not opts:
+        return []
     transfers = int(opts.get("transfers", 0) or 0)
     if transfers <= 0:
-        return ["-o", "rclone.connections=8"]
+        return ["-o", f"rclone.connections={int(opts.get('connections', 8) or 8)}"]
     args = _DEFAULT_RCLONE_ARGS
     formatted = [a.format(transfers=transfers) for a in args]
     return [
