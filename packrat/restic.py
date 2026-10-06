@@ -169,18 +169,22 @@ class ResticRunner(QObject):
             args.append("--read-data-subset=10%")
         return args
 
-    def check(self, repo: str, password: str, read_data: str = "off") -> None:
+    def check(
+        self, repo: str, password: str, read_data: str = "off", options: Optional[dict] = None
+    ) -> None:
         """Manual integrity check; read_data off/sample/full re-reads data blobs."""
-        self._launch(repo, password, self._check_args(read_data), "check")
+        self._launch(repo, password, self._check_args(read_data), "check", options=options)
 
-    def verify(self, repo: str, password: str, read_data: str = "sample") -> None:
+    def verify(
+        self, repo: str, password: str, read_data: str = "sample", options: Optional[dict] = None
+    ) -> None:
         """Post-backup restorability proof (#28).
 
         Uses the same restic arguments as check(); only the operation name
         differs, so the result updates the verified-restore state instead of
         the manual repository-check UI.
         """
-        self._launch(repo, password, self._check_args(read_data), "verify")
+        self._launch(repo, password, self._check_args(read_data), "verify", options=options)
 
     # ------------------------------------------------------------------ plumbing
     def _on_stdout(self, proc: QProcess) -> None:

@@ -218,3 +218,75 @@ def test_prune_and_forget_arg_shapes(qapp, monkeypatch):
         ("forget", ["forget", "--keep-daily", "7"]),
         ("prune", ["forget", "--prune", "--keep-daily", "7"]),
     ]
+
+
+def test_init_clears_repo_probe_cache(qapp, monkeypatch):
+    backend = BackupBackend(_rclone_settings())
+    calls = []
+
+    def fake_run(args, timeout=300, password="", options=None):
+        calls.append(list(args))
+        return False, "", "Fatal: repository does not exist"
+
+    monkeypatch.setattr("packrat.backend.Restic.run", fake_run)
+    assert backend._repo_exists() is False
+    assert backend._repo_exists() is False
+    assert len(calls) == 1
+    backend._on_restic_finished(True, "created")
+    backend.restic._operation = "init"
+    backend._on_restic_finished(True, "created")
+    assert backend._repo_exists() is False
+    assert len(calls) == 2
+
+
+def test_transient_probe_error_not_cached(qapp, monkeypatch):
+    backend = BackupBackend(_rclone_settings())
+    calls = []
+
+    def fake_run(args, timeout=300, password="", options=None):
+        calls.append(1)
+        return False, "", "connection reset by peer"
+
+    monkeypatch.setattr("packrat.backend.Restic.run", fake_run)
+    assert backend._repo_exists() is False
+    assert backend._repo_exists() is False
+    assert len(calls) == 2
+
+
+def test_check_and_verify_get_cloud_options(qapp, monkeypatch):
+    backend = BackupBackend(_rclone_settings())
+    launched = []
+
+    def fake_check(self, repo, password, read_data="off", options=None):
+        launched.append(("check", repo, read_data, options))
+
+    monkeypatch.setattr(ResticRunner, "check", fake_check)
+    monkeypatch.setattr(
+        ResticRunner,
+        "verify",
+        lambda self, repo, password, read_data="sample", options=None: launched.append(
+            ("verify", repo, read_data, options)
+        ),
+    )
+    backend.check()
+    backend.verify_backup()
+    assert launched[0][0] == "check"
+    assert launched[0][3] == {"connections": 8, "transfers": 8, "pack_size": 64}
+    assert launched[1][0] == "verify"
+    assert launched[1][3] == {"connections": 8, "transfers": 8, "pack_size": 64}
+
+
+def test_forget_logged_in_activity(qapp):
+    from packrat.jobs import BackupJob
+
+    backend = BackupBackend(_rclone_settings())
+    job = BackupJob(backend.settings, backend)
+    job.last_operation = "forget"
+    job._on_operation_finished("forget", True, "retention applied")
+    import json
+
+    from packrat.activity import log_path
+
+    entries = [json.loads(line) for line in log_path().read_text().splitlines()]
+    assert entries[-1]["operation"] == "forget"
+    assert entries[-1]["success"] is True

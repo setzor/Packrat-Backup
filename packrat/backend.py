@@ -172,11 +172,8 @@ class BackupBackend(QObject):
             return True
         if self.settings.backend_cfg.backend is Backend.LOCAL:
             path = os.path.expanduser(self.settings.backend_cfg.local_path)
-            result = os.path.isdir(os.path.join(path, "keys"))
-        else:
-            result = False
-        self._repo_probe = (repo, result)
-        return result
+            return os.path.isdir(os.path.join(path, "keys"))
+        return False
 
     def list_snapshots(self) -> None:
         self.restic.snapshots(self.repo_location(), self._password, options=self.cloud_options())
@@ -226,14 +223,14 @@ class BackupBackend(QObject):
         return _dt.datetime.now() - last_dt >= interval
 
     def check(self) -> None:
-        self.restic.check(self.repo_location(), self._password)
+        self.restic.check(self.repo_location(), self._password, options=self.cloud_options())
 
     def verify_backup(self) -> None:
         """Prove the latest backup restorable (#28) using the configured mode."""
         mode = self.settings.verify_after_backup
         if mode == "off":
             return
-        self.restic.verify(self.repo_location(), self._password, mode)
+        self.restic.verify(self.repo_location(), self._password, mode, options=self.cloud_options())
 
     def is_busy(self) -> bool:
         return self.restic.is_running() or self.rclone.is_running()
@@ -245,6 +242,8 @@ class BackupBackend(QObject):
 
     # ------------------------------------------------------------------ signals
     def _on_restic_finished(self, success: bool, message: str) -> None:
+        if self.restic._operation == "init":
+            self._repo_probe = None
         if self._initing_for_backup and self.restic._operation == "init":
             self._initing_for_backup = False
             if not success:

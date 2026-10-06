@@ -471,6 +471,8 @@ class MainWindow(QMainWindow):
         if not self.backend.prune_due():
             log.debug("Auto-prune: not due yet, only applying retention")
             if self.job.start_forget():
+                self.schedule_page.set_cleaning(True)
+                self.tray.set_state(running=True, status_text="Cleaning up…")
                 return
             self._maybe_start_verification()
             return

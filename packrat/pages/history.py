@@ -21,6 +21,7 @@ _OPERATION_LABELS = {
     "backup": "Backup",
     "restore": "Restore",
     "prune": "Cleanup",
+    "forget": "Apply retention",
     "verify": "Verify backup",
     "check": "Check repository",
     "change-check": "Change check",
