@@ -38,7 +38,7 @@ def test_backend_verify_backup_launches_check(qapp, monkeypatch):
     monkeypatch.setattr(
         backend.restic,
         "verify",
-        lambda repo, password, read_data="sample": launched.append((repo, read_data)),
+        lambda repo, password, read_data="sample", options=None: launched.append((repo, read_data)),
     )
     backend.verify_backup()
     assert launched == [("/tmp/does-not-matter", "sample")]

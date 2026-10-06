@@ -46,7 +46,7 @@ def test_rclone_repo_location_rejects_slashes_only_path(qapp):
 def test_run_backup_probes_instead_of_local_only_check(backend, monkeypatch, tmp_path):
     calls = []
 
-    def fake_run(args, timeout=300, password=""):
+    def fake_run(args, timeout=300, password="", options=None):
         calls.append(list(args))
         return False, "", "Fatal: repository does not exist"
 
@@ -59,7 +59,8 @@ def test_run_backup_probes_instead_of_local_only_check(backend, monkeypatch, tmp
 
 def test_repo_exists_true_when_config_probe_succeeds(backend, monkeypatch):
     monkeypatch.setattr(
-        "packrat.backend.Restic.run", lambda args, timeout=300, password="": (True, "{}", "")
+        "packrat.backend.Restic.run",
+        lambda args, timeout=300, password="", options=None: (True, "{}", ""),
     )
     assert backend._repo_exists() is True
 
@@ -67,7 +68,11 @@ def test_repo_exists_true_when_config_probe_succeeds(backend, monkeypatch):
 def test_repo_exists_false_on_exit_code_missing_message(backend, monkeypatch):
     monkeypatch.setattr(
         "packrat.backend.Restic.run",
-        lambda args, timeout=300, password="": (False, "", "Fatal: repository does not exist"),
+        lambda args, timeout=300, password="", options=None: (
+            False,
+            "",
+            "Fatal: repository does not exist",
+        ),
     )
     assert backend._repo_exists() is False
 
@@ -75,7 +80,7 @@ def test_repo_exists_false_on_exit_code_missing_message(backend, monkeypatch):
 def test_repo_exists_true_on_wrong_password(backend, monkeypatch):
     monkeypatch.setattr(
         "packrat.backend.Restic.run",
-        lambda args, timeout=300, password="": (
+        lambda args, timeout=300, password="", options=None: (
             False,
             "",
             "Fatal: wrong password or no key found",
@@ -87,20 +92,21 @@ def test_repo_exists_true_on_wrong_password(backend, monkeypatch):
 def test_repo_exists_false_on_other_rclone_error(backend, monkeypatch):
     monkeypatch.setattr(
         "packrat.backend.Restic.run",
-        lambda args, timeout=300, password="": (False, "", "some other failure"),
+        lambda args, timeout=300, password="", options=None: (False, "", "some other failure"),
     )
     assert backend._repo_exists() is False
 
 
 def test_run_backup_backs_up_when_remote_repo_exists(backend, monkeypatch):
     monkeypatch.setattr(
-        "packrat.backend.Restic.run", lambda args, timeout=300, password="": (True, "{}", "")
+        "packrat.backend.Restic.run",
+        lambda args, timeout=300, password="", options=None: (True, "{}", ""),
     )
     launched = []
     monkeypatch.setattr(
         ResticRunner,
         "backup",
-        lambda self, repo, password, folders, excludes: launched.append(repo),
+        lambda self, repo, password, folders, excludes, options=None: launched.append(repo),
     )
     backend.run_backup()
     assert launched == ["rclone:myremote:packrat-backups"]
@@ -108,7 +114,7 @@ def test_run_backup_backs_up_when_remote_repo_exists(backend, monkeypatch):
 
 
 def test_run_backup_falls_back_to_local_keys_check(backend, monkeypatch):
-    def failing_run(args, timeout=300, password=""):
+    def failing_run(args, timeout=300, password="", options=None):
         raise FileNotFoundError("restic binary vanished")
 
     monkeypatch.setattr("packrat.backend.Restic.run", failing_run)
@@ -119,7 +125,7 @@ def test_run_backup_falls_back_to_local_keys_check(backend, monkeypatch):
 def test_repo_probe_passes_password(backend, monkeypatch):
     seen = {}
 
-    def fake_run(args, timeout=300, password=""):
+    def fake_run(args, timeout=300, password="", options=None):
         seen["args"] = list(args)
         seen["password"] = password
         return True, "{}", ""
@@ -134,7 +140,7 @@ def test_repo_probe_passes_password(backend, monkeypatch):
 def test_repo_exists_false_on_legacy_missing_repo_wording(backend, monkeypatch):
     monkeypatch.setattr(
         "packrat.backend.Restic.run",
-        lambda args, timeout=300, password="": (
+        lambda args, timeout=300, password="", options=None: (
             False,
             "",
             "Fatal: unable to open config file: stat /x/config: no such file or directory",

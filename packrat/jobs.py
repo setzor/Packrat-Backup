@@ -79,13 +79,20 @@ class BackupJob(QObject):
             return False
 
     def start_prune(self) -> bool:
+        return self._start_retention(self.backend.prune)
+
+    def start_forget(self) -> bool:
+        """Apply retention without repacking — cheap on cloud repositories (#64)."""
+        return self._start_retention(self.backend.forget)
+
+    def _start_retention(self, starter) -> bool:
         if self.is_running():
             return False
         try:
             self._running = True
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
             self._started_monotonic = time.monotonic()
-            self.backend.prune()
+            starter()
             return True
         except Exception as exc:
             self._running = False
@@ -96,7 +103,7 @@ class BackupJob(QObject):
     def _on_operation_finished(self, operation: str, success: bool, message: str) -> None:
         self._running = False
         self.last_operation = operation
-        if operation in ("backup", "restore", "prune"):
+        if operation in ("backup", "restore", "prune", "forget"):
             log_run(
                 operation,
                 success,
