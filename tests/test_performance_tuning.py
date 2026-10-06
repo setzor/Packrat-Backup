@@ -62,10 +62,10 @@ def test_rclone_serve_args_accepted_by_rclone(tmp_path):
         [rclone, "--config", str(conf)] + serve + ["test:/does-not-exist"],
         stdin=subprocess.DEVNULL,
         capture_output=True,
-        text=True,
         timeout=30,
     )
-    assert completed.returncode == 0, completed.stderr
+    stderr = completed.stderr.decode("utf-8", errors="replace")
+    assert completed.returncode == 0, stderr
     for flag in ("--stdio", "--checkers=16", "--fast-list", "--transfers=8", "--buffer-size=32M"):
         assert flag in serve
 
