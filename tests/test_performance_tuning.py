@@ -1,5 +1,7 @@
 import textwrap
 
+import pytest
+
 from packrat.backend import BackupBackend
 from packrat.restic import Restic, ResticRunner, _extended_options
 from packrat.settings import Backend, Settings
@@ -34,7 +36,38 @@ def test_extended_options_pass_rclone_tuning():
     assert "--transfers=8" in rclone_args
     assert "--checkers=16" in rclone_args
     assert "--fast-list" in rclone_args
-    assert "--dir-cache-time=48h" in rclone_args
+    assert "--buffer-size=32M" in rclone_args
+
+
+def test_rclone_serve_args_accepted_by_rclone(tmp_path):
+    """Every flag we inject must be valid for `rclone serve restic` (#64).
+
+    restic spawns rclone with rclone.args; an unknown flag makes rclone
+    exit immediately and every repository operation fail (regression:
+    --dir-cache-time is a VFS flag, not a serve flag).
+    """
+    import shutil
+    import subprocess
+
+    rclone = shutil.which("rclone")
+    if rclone is None:
+        pytest.skip("rclone not installed")
+    conf = tmp_path / "rclone.conf"
+    conf.write_text("[test]\ntype = local\n")
+    opts = {"connections": 8, "transfers": 8, "pack_size": 64}
+    rclone_args = _extended_options("rclone:test:repo", opts)[3]
+    assert rclone_args.startswith("rclone.args=")
+    serve = rclone_args.split("=", 1)[1].split()
+    completed = subprocess.run(
+        [rclone, "--config", str(conf)] + serve + ["test:/does-not-exist"],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert completed.returncode == 0, completed.stderr
+    for flag in ("--stdio", "--checkers=16", "--fast-list", "--transfers=8", "--buffer-size=32M"):
+        assert flag in serve
 
 
 def test_backend_cloud_options_only_for_rclone(qapp):
