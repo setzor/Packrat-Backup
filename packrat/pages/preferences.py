@@ -79,6 +79,39 @@ class PreferencesPage(QWidget):
         self._restore_refresh_spin.valueChanged.connect(self._on_changed)
         performance_layout.addWidget(self._restore_refresh_spin)
         performance_layout.addStretch(1)
+
+        cloud_row = QHBoxLayout()
+        cloud_row.addWidget(QLabel("Cloud destination tuning:"))
+        self._cloud_connections_spin = QSpinBox()
+        self._cloud_connections_spin.setRange(1, 16)
+        self._cloud_connections_spin.setToolTip(
+            "Parallel connections restic opens to rclone remotes such as "
+            "OneDrive or Google Drive.\nHigher values help on high-latency "
+            "links but use more memory."
+        )
+        self._cloud_connections_spin.valueChanged.connect(self._on_changed)
+        cloud_row.addWidget(self._cloud_connections_spin)
+        cloud_row.addWidget(QLabel("connections,"))
+        self._cloud_pack_size_spin = QSpinBox()
+        self._cloud_pack_size_spin.setRange(16, 128)
+        self._cloud_pack_size_spin.setSuffix(" MiB packs")
+        self._cloud_pack_size_spin.setToolTip(
+            "Larger packs mean fewer upload round-trips to the cloud.\n"
+            "Bigger packs need more temporary space during backups."
+        )
+        self._cloud_pack_size_spin.valueChanged.connect(self._on_changed)
+        cloud_row.addWidget(self._cloud_pack_size_spin)
+        cloud_row.addStretch(1)
+        performance_layout.addLayout(cloud_row)
+
+        cloud_hint = QLabel(
+            "These apply only when the backup destination is an rclone remote "
+            "(OneDrive, Google Drive and friends). Local destinations are "
+            "already fast."
+        )
+        cloud_hint.setWordWrap(True)
+        cloud_hint.setStyleSheet("color: #555;")
+        performance_layout.addWidget(cloud_hint)
         root.addWidget(performance_box)
 
         verify_box = QGroupBox("Verified restores")
@@ -133,6 +166,12 @@ class PreferencesPage(QWidget):
         self._restore_refresh_spin.blockSignals(True)
         self._restore_refresh_spin.setValue(int(settings.restore_refresh_minutes))
         self._restore_refresh_spin.blockSignals(False)
+        self._cloud_connections_spin.blockSignals(True)
+        self._cloud_connections_spin.setValue(int(settings.cloud_connections))
+        self._cloud_connections_spin.blockSignals(False)
+        self._cloud_pack_size_spin.blockSignals(True)
+        self._cloud_pack_size_spin.setValue(int(settings.cloud_pack_size))
+        self._cloud_pack_size_spin.blockSignals(False)
         self._verify_combo.blockSignals(True)
         index = self._verify_combo.findData(settings.verify_after_backup)
         self._verify_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -149,6 +188,8 @@ class PreferencesPage(QWidget):
             "close_to_tray": self._close_to_tray_check.isChecked(),
             "run_at_startup": self._run_at_startup_check.isChecked(),
             "restore_refresh_minutes": self._restore_refresh_spin.value(),
+            "cloud_connections": self._cloud_connections_spin.value(),
+            "cloud_pack_size": self._cloud_pack_size_spin.value(),
             "verify_after_backup": self._verify_combo.currentData(),
             "change_detection": self._change_check.isChecked(),
             "changed_files_threshold": self._change_spin.value(),

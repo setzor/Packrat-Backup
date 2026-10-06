@@ -6,6 +6,7 @@ exposes high-level operations used by the UI and the scheduler.
 
 from __future__ import annotations
 
+import datetime as _dt
 import os
 from subprocess import SubprocessError
 from typing import Optional
@@ -40,6 +41,7 @@ class BackupBackend(QObject):
         self.rclone = RcloneRunner(self)
         self._password = ""
         self._initing_for_backup = False
+        self._repo_probe: Optional[tuple] = None
         self.restic.finished.connect(self._on_restic_finished)
         self.restic.progress.connect(self.progress)
         self.restic.snapshots_listed.connect(self._on_snapshots)
@@ -84,16 +86,28 @@ class BackupBackend(QObject):
             path = os.path.expanduser(cfg.local_path)
             os.makedirs(path, exist_ok=True)
 
+    def cloud_options(self) -> dict:
+        """Tuning applied to restic invocations on rclone repositories (#64)."""
+        if self.settings.backend_cfg.backend is not Backend.RCLONE:
+            return {}
+        return {
+            "connections": self.settings.cloud_connections,
+            "transfers": self.settings.cloud_connections,
+            "pack_size": self.settings.cloud_pack_size,
+        }
+
     def init_repository(self) -> None:
         self.prepare()
-        self.restic.init(self.repo_location(), self._password)
+        self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
 
     def run_backup(self) -> None:
         if not self.settings.folders:
             raise BackendError("No folders selected to back up")
         self.prepare()
         if not self._repo_exists():
-            self.restic.init(self.repo_location(), self._password)
+            self.restic.init(
+                self.repo_location(), self._password, options=self.cloud_options()
+            )
             self._initing_for_backup = True
             return
         self.restic.backup(
@@ -101,6 +115,7 @@ class BackupBackend(QObject):
             self._password,
             self.settings.folders,
             self._backup_excludes(),
+            options=self.cloud_options(),
         )
 
     def preview_backup(self) -> None:
@@ -114,6 +129,7 @@ class BackupBackend(QObject):
             self.settings.folders,
             self._backup_excludes(),
             dry_run=True,
+            options=self.cloud_options(),
         )
 
     def _repo_exists(self) -> bool:
@@ -129,44 +145,89 @@ class BackupBackend(QObject):
             repo = self.repo_location()
         except BackendError:
             return False
+        if self._repo_probe is not None and self._repo_probe[0] == repo:
+            return self._repo_probe[1]
         try:
             ok, _, stderr = Restic.run(
                 ["--repo", repo, "cat", "config"],
                 timeout=60,
                 password=self._password,
+                options=dict(self.cloud_options(), pack_size=None),
             )
         except (OSError, SubprocessError):
             ok, stderr = False, ""
         if ok:
+            self._repo_probe = (repo, True)
             return True
         lowered = stderr.lower()
         if "repository does not exist" in lowered:
+            self._repo_probe = (repo, False)
             return False
         if "no such file or directory" in lowered:
+            self._repo_probe = (repo, False)
             return False
         if "is there a repository at the following location" in lowered:
+            self._repo_probe = (repo, False)
             return False
         if "wrong password" in lowered or "password" in lowered:
+            self._repo_probe = (repo, True)
             return True
         if self.settings.backend_cfg.backend is Backend.LOCAL:
             path = os.path.expanduser(self.settings.backend_cfg.local_path)
-            return os.path.isdir(os.path.join(path, "keys"))
-        return False
+            result = os.path.isdir(os.path.join(path, "keys"))
+        else:
+            result = False
+        self._repo_probe = (repo, result)
+        return result
 
     def list_snapshots(self) -> None:
-        self.restic.snapshots(self.repo_location(), self._password)
+        self.restic.snapshots(
+            self.repo_location(), self._password, options=self.cloud_options()
+        )
 
     def list_snapshot_files(self, snapshot_id: str) -> None:
-        self.restic.list_files(self.repo_location(), self._password, snapshot_id)
+        self.restic.list_files(
+            self.repo_location(), self._password, snapshot_id, options=self.cloud_options()
+        )
 
     def restore_snapshot(self, snapshot_id: str, target: str, includes=None) -> None:
         os.makedirs(os.path.expanduser(target), exist_ok=True)
-        self.restic.restore(self.repo_location(), self._password, snapshot_id, target, includes)
+        self.restic.restore(
+            self.repo_location(),
+            self._password,
+            snapshot_id,
+            target,
+            includes,
+            options=self.cloud_options(),
+        )
+
+    def forget(self) -> None:
+        self.restic.forget(
+            self.repo_location(),
+            self._password,
+            keep_args_from_settings(self.settings),
+            options=self.cloud_options(),
+        )
 
     def prune(self) -> None:
         self.restic.prune(
-            self.repo_location(), self._password, keep_args_from_settings(self.settings)
+            self.repo_location(),
+            self._password,
+            keep_args_from_settings(self.settings),
+            options=self.cloud_options(),
         )
+
+    def prune_due(self) -> bool:
+        """True when the scheduled auto-prune interval has elapsed (#64)."""
+        last = str(self.settings.last_prune_time or "").strip()
+        if not last:
+            return True
+        try:
+            last_dt = _dt.datetime.fromisoformat(last)
+        except ValueError:
+            return True
+        interval = _dt.timedelta(days=max(1, int(self.settings.auto_prune_interval_days)))
+        return _dt.datetime.now() - last_dt >= interval
 
     def check(self) -> None:
         self.restic.check(self.repo_location(), self._password)
@@ -199,6 +260,7 @@ class BackupBackend(QObject):
                     self._password,
                     self.settings.folders,
                     self._backup_excludes(),
+                    options=self.cloud_options(),
                 )
                 return
             except Exception as exc:

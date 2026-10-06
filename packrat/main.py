@@ -129,7 +129,7 @@ class MainWindow(QMainWindow):
         self.job.started.connect(self._on_backup_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.finished.connect(lambda *_: self._refresh_history())
-        self.backend.operation_finished.connect(self._maybe_auto_prune)
+        self.backend.operation_finished.connect(self._maybe_auto_cleanup)
         self.job.progress.connect(self._on_progress)
         self.backend.snapshots_ready.connect(self._on_snapshots_ready)
         self.backend.check_finished.connect(self._on_check_finished)
@@ -267,6 +267,7 @@ class MainWindow(QMainWindow):
         self.settings.keep_monthly = data["keep_monthly"]
         self.settings.keep_yearly = data["keep_yearly"]
         self.settings.auto_prune = data["auto_prune"]
+        self.settings.auto_prune_interval_days = data["auto_prune_interval_days"]
         self.settings.save()
         self.scheduler.set_paused(self.settings.schedule_paused)
         self.tray.set_pause_state(self.settings.schedule_paused)
@@ -278,6 +279,8 @@ class MainWindow(QMainWindow):
         self.settings.close_to_tray = data["close_to_tray"]
         self.settings.run_at_startup = data["run_at_startup"]
         self.settings.restore_refresh_minutes = data["restore_refresh_minutes"]
+        self.settings.cloud_connections = data["cloud_connections"]
+        self.settings.cloud_pack_size = data["cloud_pack_size"]
         self.settings.verify_after_backup = data["verify_after_backup"]
         self.settings.change_detection = data["change_detection"]
         self.settings.changed_files_threshold = data["changed_files_threshold"]
@@ -453,7 +456,8 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at = _dt.datetime.now()
         self._snapshots_loaded_after_backup = self.settings.last_backup_time
 
-    def _maybe_auto_prune(self, operation: str, success: bool, _message: str) -> None:
+    def _maybe_auto_cleanup(self, operation: str, success: bool, _message: str) -> None:
+        """Apply retention after a backup: forget every run, prune on a schedule (#64)."""
         if operation != "backup" or not success:
             return
         self._verify_pending = self.settings.verify_after_backup != "off"
@@ -463,6 +467,12 @@ class MainWindow(QMainWindow):
         if self.job.is_running():
             return
         if not self.backend.has_password():
+            return
+        if not self.backend.prune_due():
+            log.debug("Auto-prune: not due yet, only applying retention")
+            if self.job.start_forget():
+                return
+            self._maybe_start_verification()
             return
         log.info("Auto-prune: cleaning up after successful backup")
         if self.job.start_prune():
@@ -584,7 +594,7 @@ class MainWindow(QMainWindow):
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
     def _on_job_finished(self, success: bool, message: str) -> None:
-        if self.job.last_operation == "prune":
+        if self.job.last_operation in ("prune", "forget"):
             self._on_cleanup_finished(success, message)
             return
         self.overview_page.set_backup_enabled(True)
@@ -623,6 +633,9 @@ class MainWindow(QMainWindow):
             self.tray.set_state(running=True, status_text="Cleaning up…")
 
     def _on_cleanup_finished(self, success: bool, message: str) -> None:
+        if self.job.last_operation == "prune" and success:
+            self.settings.last_prune_time = _dt.datetime.now().isoformat(timespec="seconds")
+            self.settings.save()
         self.schedule_page.set_cleaning(False)
         self.overview_page.set_backup_enabled(True)
         self._refresh_overview()

@@ -97,9 +97,11 @@ def test_retention_roundtrip_and_auto_prune_setting(qapp):
 
     page._auto_prune_check.setChecked(True)
     page._keep_daily_spin.setValue(7)
+    page._auto_prune_interval_spin.setValue(30)
     data = page.save()
     assert data["auto_prune"] is True
     assert data["keep_daily"] == 7
+    assert data["auto_prune_interval_days"] == 30
 
 
 def test_pause_does_not_grey_out_retention(qapp):

@@ -79,13 +79,20 @@ class BackupJob(QObject):
             return False
 
     def start_prune(self) -> bool:
+        return self._start_retention("prune", self.backend.prune)
+
+    def start_forget(self) -> bool:
+        """Apply retention without repacking — cheap on cloud repositories (#64)."""
+        return self._start_retention("forget", self.backend.forget)
+
+    def _start_retention(self, name: str, starter) -> bool:
         if self.is_running():
             return False
         try:
             self._running = True
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
             self._started_monotonic = time.monotonic()
-            self.backend.prune()
+            starter()
             return True
         except Exception as exc:
             self._running = False

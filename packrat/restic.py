@@ -63,6 +63,7 @@ class ResticRunner(QObject):
         args: List[str],
         operation: str,
         working_dir: Optional[str] = None,
+        options: Optional[dict] = None,
     ) -> None:
         if self.is_running():
             raise ResticProcessError("A restic operation is already running")
@@ -71,8 +72,12 @@ class ResticRunner(QObject):
             raise ResticProcessError("restic binary not found on this system")
         proc = QProcess(self)
         proc.setProgram(binary)
-        proc.setArguments(["--repo", repo] + args)
+        proc.setArguments(["--repo", repo] + _extended_options(repo, options) + args)
         env = QProcessEnvironment.systemEnvironment()
+        if repo.startswith("rclone:"):
+            pack_size = (options or {}).get("pack_size")
+            if pack_size:
+                env.insert("RESTIC_PACK_SIZE", str(pack_size))
         if password:
             env.insert("RESTIC_PASSWORD", password)
         else:
@@ -91,8 +96,14 @@ class ResticRunner(QObject):
         proc.start()
 
     # ------------------------------------------------------------------ operations
-    def init(self, repo: str, password: str) -> None:
-        self._launch(repo, password, ["init"], "init")
+    def init(self, repo: str, password: str, options: Optional[dict] = None) -> None:
+        self._launch(
+            repo,
+            password,
+            ["init", "--repository-version", "2"],
+            "init",
+            options=options,
+        )
 
     def backup(
         self,
@@ -101,6 +112,7 @@ class ResticRunner(QObject):
         folders: List[str],
         excludes: List[str],
         dry_run: bool = False,
+        options: Optional[dict] = None,
     ) -> None:
         args = ["backup", "--json"]
         if dry_run:
@@ -109,10 +121,12 @@ class ResticRunner(QObject):
             args += ["--exclude", os.path.expanduser(pattern)]
         for folder in folders:
             args.append(os.path.expanduser(folder))
-        self._launch(repo, password, args, "dry-run" if dry_run else "backup")
+        self._launch(
+            repo, password, args, "dry-run" if dry_run else "backup", options=options
+        )
 
-    def snapshots(self, repo: str, password: str) -> None:
-        self._launch(repo, password, ["snapshots", "--json"], "snapshots")
+    def snapshots(self, repo: str, password: str, options: Optional[dict] = None) -> None:
+        self._launch(repo, password, ["snapshots", "--json"], "snapshots", options=options)
 
     def restore(
         self,
@@ -121,17 +135,33 @@ class ResticRunner(QObject):
         snapshot_id: str,
         target: str,
         includes: Optional[List[str]] = None,
+        options: Optional[dict] = None,
     ) -> None:
         args = ["restore", snapshot_id, "--target", target]
         for pattern in includes or []:
             args += ["--include", pattern]
-        self._launch(repo, password, args, "restore")
+        self._launch(repo, password, args, "restore", options=options)
 
-    def list_files(self, repo: str, password: str, snapshot_id: str) -> None:
-        self._launch(repo, password, ["ls", snapshot_id, "--json"], "ls")
+    def list_files(
+        self, repo: str, password: str, snapshot_id: str, options: Optional[dict] = None
+    ) -> None:
+        self._launch(repo, password, ["ls", snapshot_id, "--json"], "ls", options=options)
 
-    def prune(self, repo: str, password: str, keep_args: List[str]) -> None:
-        self._launch(repo, password, ["forget", "--prune"] + keep_args, "prune")
+    def prune(
+        self, repo: str, password: str, keep_args: List[str], options: Optional[dict] = None
+    ) -> None:
+        self._launch(
+            repo,
+            password,
+            ["forget", "--prune"] + keep_args,
+            "prune",
+            options=options,
+        )
+
+    def forget(
+        self, repo: str, password: str, keep_args: List[str], options: Optional[dict] = None
+    ) -> None:
+        self._launch(repo, password, ["forget"] + keep_args, "forget", options=options)
 
     def _check_args(self, read_data: str) -> List[str]:
         args = ["check"]
@@ -351,21 +381,64 @@ def _clean_stderr(stderr: str) -> str:
     return lines[-1] if lines else ""
 
 
+_DEFAULT_RCLONE_ARGS = [
+    "serve", "restic", "--stdio",
+    "--checkers=16",
+    "--fast-list",
+    "--dir-cache-time=48h",
+    "--transfers={transfers}",
+    "--buffer-size=32M",
+]
+
+
+def _extended_options(repo: str, options: Optional[dict]) -> List[str]:
+    """Build restic -o/--option flags for the rclone backend (#64).
+
+    restic spawns ``rclone serve restic --stdio`` itself, so tuning has to
+    reach rclone via the rclone.args extended option; the remote spec is
+    appended by restic. Non-rclone repositories get no extra options.
+    """
+    if not repo.startswith("rclone:"):
+        return []
+    opts = options or {}
+    transfers = int(opts.get("transfers", 0) or 0)
+    if transfers <= 0:
+        return ["-o", "rclone.connections=8"]
+    args = _DEFAULT_RCLONE_ARGS
+    formatted = [a.format(transfers=transfers) for a in args]
+    return [
+        "-o",
+        f"rclone.connections={int(opts.get('connections', 8) or 8)}",
+        "-o",
+        "rclone.args=" + " ".join(formatted),
+    ]
+
+
 class Restic:
     """Convenience synchronous helpers used by tests and background workers."""
 
     @staticmethod
-    def run(args: List[str], timeout: int = 300, password: str = "") -> Tuple[bool, str, str]:
+    def run(
+        args: List[str], timeout: int = 300, password: str = "", options: Optional[dict] = None
+    ) -> Tuple[bool, str, str]:
         import subprocess
 
         binary = restic_path() or "restic"
         env = dict(os.environ)
+        flat = [str(a) for a in args]
+        repo = ""
+        if flat and flat[0] == "--repo" and len(flat) > 1:
+            repo = flat[1]
+        if repo.startswith("rclone:") and options and options.get("pack_size"):
+            env["RESTIC_PACK_SIZE"] = str(options["pack_size"])
+        else:
+            env.pop("RESTIC_PACK_SIZE", None)
         if password:
             env["RESTIC_PASSWORD"] = password
         else:
             env.pop("RESTIC_PASSWORD", None)
         completed = subprocess.run(
-            [binary] + [str(a) for a in args],
+            [binary] + flat[:2] + _extended_options(repo, options) + flat[2:],
             capture_output=True,
             text=True,
             timeout=timeout,

@@ -134,13 +134,30 @@ class SchedulePage(QWidget):
         retention_grid.setColumnStretch(4, 1)
         retention_layout.addLayout(retention_grid)
 
-        self._auto_prune_check = QCheckBox("Automatically clean up after each backup")
+        self._auto_prune_check = QCheckBox("Automatically apply cleanup rules after each backup")
         self._auto_prune_check.setToolTip(
-            "Runs the cleanup in the background after every successful backup.\n"
-            "Disable it to keep everything forever."
+            "Applies the backup limits in the background after every successful "
+            "backup.\nRepacking the repository to free space runs at most once "
+            "a week (or the interval below), because it is slow on cloud "
+            "destinations.\nDisable it to keep everything forever."
         )
         self._auto_prune_check.toggled.connect(self.changed.emit)
         retention_layout.addWidget(self._auto_prune_check)
+
+        self._auto_prune_interval_spin = QSpinBox()
+        self._auto_prune_interval_spin.setRange(1, 90)
+        self._auto_prune_interval_spin.setSuffix(" days")
+        self._auto_prune_interval_spin.setToolTip(
+            "How often the full cleanup (freeing disk space by repacking) "
+            "runs automatically. Between runs, old backups are only marked "
+            "for removal, which is much faster on cloud destinations."
+        )
+        self._auto_prune_interval_spin.valueChanged.connect(self.changed.emit)
+        interval_row = QHBoxLayout()
+        interval_row.addWidget(QLabel("Fully repack and free space at most every:"))
+        interval_row.addWidget(self._auto_prune_interval_spin)
+        interval_row.addStretch(1)
+        retention_layout.addLayout(interval_row)
 
         self._clean_now_button = QPushButton("Clean Up Now")
         self._clean_now_button.clicked.connect(self.clean_now_requested.emit)
@@ -199,6 +216,9 @@ class SchedulePage(QWidget):
             self._auto_prune_check.blockSignals(True)
             self._auto_prune_check.setChecked(bool(settings.auto_prune))
             self._auto_prune_check.blockSignals(False)
+            self._auto_prune_interval_spin.blockSignals(True)
+            self._auto_prune_interval_spin.setValue(int(settings.auto_prune_interval_days))
+            self._auto_prune_interval_spin.blockSignals(False)
         self._pause_check.blockSignals(True)
         self._pause_check.setChecked(bool(paused))
         self._pause_check.blockSignals(False)
@@ -238,4 +258,5 @@ class SchedulePage(QWidget):
             "keep_monthly": self._keep_monthly_spin.value(),
             "keep_yearly": self._keep_yearly_spin.value(),
             "auto_prune": self._auto_prune_check.isChecked(),
+            "auto_prune_interval_days": self._auto_prune_interval_spin.value(),
         }
