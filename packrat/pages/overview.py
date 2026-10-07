@@ -67,6 +67,7 @@ class _StatTile(QFrame):
 
 class OverviewPage(QWidget):
     backup_requested = pyqtSignal()
+    stop_requested = pyqtSignal()
     restore_requested = pyqtSignal()
     verify_requested = pyqtSignal()
     preview_requested = pyqtSignal()
@@ -129,7 +130,7 @@ class OverviewPage(QWidget):
         actions = QHBoxLayout()
         self._backup_button = QPushButton("Back Up Now")
         self._backup_button.setMinimumHeight(44)
-        self._backup_button.clicked.connect(self.backup_requested.emit)
+        self._backup_button.clicked.connect(self._on_backup_button)
         self._restore_button = QPushButton("Restore…")
         self._restore_button.setMinimumHeight(44)
         self._restore_button.clicked.connect(self.restore_requested.emit)
@@ -180,10 +181,8 @@ class OverviewPage(QWidget):
             self._title.setText("Backup in progress…")
             self._badge.set_state("ok")
             self._badge.setText("Running")
-            self._backup_button.setEnabled(False)
         else:
             self._title.setText("Your data is protected")
-            self._backup_button.setEnabled(True)
 
     def set_progress(self, percent: int, message: str) -> None:
         if percent < 0:
@@ -213,7 +212,31 @@ class OverviewPage(QWidget):
         self._progress_text.setVisible(False)
         self._progress_text.setText("")
 
+    def _on_backup_button(self) -> None:
+        if self._backup_button.text() == "Stop Backup":
+            self.stop_requested.emit()
+        else:
+            self.backup_requested.emit()
+
+    def set_backup_running(self, running: bool) -> None:
+        """Turn the backup button into a Stop button while a backup runs (#63)."""
+        if running:
+            self._backup_button.setText("Stop Backup")
+            self._backup_button.setEnabled(True)
+            self._backup_button.setStyleSheet("color: #b00;")
+            self._backup_button.setToolTip(
+                "Stop the running backup.\nAnything already uploaded stays in the "
+                "repository; the incomplete run can be cleaned up from the Restore page."
+            )
+        else:
+            self._backup_button.setText("Back Up Now")
+            self._backup_button.setEnabled(True)
+            self._backup_button.setStyleSheet("")
+            self._backup_button.setToolTip("")
+
     def set_backup_enabled(self, enabled: bool) -> None:
+        if self._backup_button.text() == "Stop Backup":
+            return
         self._backup_button.setEnabled(enabled)
 
     def set_verify_enabled(self, enabled: bool) -> None:
