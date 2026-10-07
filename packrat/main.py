@@ -579,11 +579,14 @@ class MainWindow(QMainWindow):
     def _on_job_started(self) -> None:
         self.overview_page.clear_progress()
         self.restore_page.clear_restore_progress()
-        self.overview_page.set_backup_running(self.job._starting_operation == "backup")
         if self.job._starting_operation == "backup":
+            self.overview_page.set_backup_running(True)
             self.restore_page.set_enabled_state(True)
             self.tray.set_state(running=True, status_text="Backup running…")
             self._refresh_overview(running=True)
+        else:
+            self.overview_page.set_backup_running(False)
+            self.overview_page.set_backup_enabled(False)
 
     def _stop_backup(self) -> None:
         """Stop the running backup cleanly (#63)."""
@@ -621,15 +624,14 @@ class MainWindow(QMainWindow):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        self.restore_page.set_cleaning_up(True)
-        self.restore_page._cleanup_label.setText("")
-        self.tray.set_state(running=True, status_text="Cleaning up…")
-        try:
-            self.backend.prune()
-        except (BackendError, ResticProcessError) as exc:
+        if not self.job.start_prune():
             self.restore_page.set_cleaning_up(False)
-            self.tray.set_state(running=False, status_text="Packrat Backup")
-            QMessageBox.warning(self, "Packrat Backup", f"Could not clean up: {exc}")
+            QMessageBox.information(
+                self, "Packrat Backup", "A backup or cleanup is already running."
+            )
+            return
+        self.restore_page.set_cleaning_up(True)
+        self.tray.set_state(running=True, status_text="Cleaning up…")
 
     def _on_prune_stats(self, stats: dict) -> None:
         self.restore_page.set_cleaning_up(False)

@@ -261,7 +261,9 @@ class ResticRunner(QObject):
         elif self._operation == "dry-run" and success:
             self.dry_run_ready.emit(_parse_dry_run_summary(stdout))
         elif self._operation == "prune" and success:
-            self.prune_stats_ready.emit(_parse_prune_stats(stderr or self._stderr_text))
+            self.prune_stats_ready.emit(
+                _parse_prune_stats(stdout + "\n" + stderr + "\n" + self._stderr_text)
+            )
         if self._stopping and not success:
             self._stopping = False
             message = "Stopped by user."

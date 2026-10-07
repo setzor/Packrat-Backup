@@ -203,6 +203,8 @@ class RestorePage(QWidget):
     def set_cleaning_up(self, cleaning: bool) -> None:
         self._cleanup_button.setText("Cleaning up…" if cleaning else "Clean Up Incomplete Backups")
         self._cleanup_button.setEnabled(not cleaning)
+        if cleaning:
+            self._cleanup_label.setText("")
 
     def set_cleanup_result(self, blobs: int, size_bytes: int) -> None:
         from ..restic import _human_size

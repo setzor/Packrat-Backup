@@ -1,3 +1,5 @@
+from PyQt6.QtWidgets import QMessageBox
+
 from packrat.restic import ResticRunner, _parse_prune_stats, _parse_size
 
 
@@ -110,9 +112,41 @@ def test_cleanup_button_busy_state(qapp):
     from packrat.pages.restore import RestorePage
 
     page = RestorePage()
+    page._cleanup_label.setText("previous result")
     page.set_cleaning_up(True)
     assert page._cleanup_button.text() == "Cleaning up…"
     assert not page._cleanup_button.isEnabled()
+    assert page._cleanup_label.text() == ""
     page.set_cleaning_up(False)
     assert page._cleanup_button.text() == "Clean Up Incomplete Backups"
     assert page._cleanup_button.isEnabled()
+
+
+def test_parse_prune_stats_from_stdout_stream():
+    stdout = "total prune: 42 blobs / 1.100 GiB\n"
+    assert _parse_prune_stats(stdout)["blobs"] == 42
+
+
+def test_cleanup_runs_through_job(qapp, monkeypatch):
+    """Manual cleanup must use the job so failures reset the UI (#63)."""
+    from packrat.main import MainWindow
+    from packrat.settings import Settings
+
+    started = []
+    settings = Settings()
+    settings.first_run_done = True
+    settings.folders = ["/tmp/packrat-test-data"]
+    window = MainWindow(settings)
+    monkeypatch.setattr(window.job, "start_prune", lambda: started.append(True) or True)
+    monkeypatch.setattr(
+        "packrat.main.QMessageBox.question",
+        lambda *a, **k: QMessageBox.StandardButton.Yes,
+    )
+    window.backend.set_password("pw")
+    try:
+        window._cleanup_incomplete()
+        assert started == [True]
+        assert window.restore_page._cleanup_button.text() == "Cleaning up…"
+    finally:
+        window.tray.hide()
+        window.close()
