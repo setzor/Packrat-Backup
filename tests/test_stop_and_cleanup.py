@@ -69,13 +69,15 @@ def test_set_backup_enabled_ignored_while_running(qapp):
 
 
 def test_runner_stop_terminates_process(qapp):
-    import PyQt6.QtCore as QtCore
+    from PyQt6.QtCore import QProcess
 
     runner = ResticRunner()
     runner.stop()
 
-    class FakeProc(QtCore.QObject):
-        state = QtCore.QProcess.ProcessState.Running
+    class FakeProc:
+        def state(self):
+            return QProcess.ProcessState.Running
+
         terminated = False
 
         def terminate(self):
@@ -85,6 +87,12 @@ def test_runner_stop_terminates_process(qapp):
     runner._process = fake
     runner.stop()
     assert fake.terminated is True
+
+
+def test_runner_stop_noop_without_process(qapp):
+    runner = ResticRunner()
+    runner.stop()
+    assert runner._process is None
 
 
 def test_cleanup_button_result_text(qapp):
