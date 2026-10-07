@@ -84,3 +84,16 @@ def test_restore_refresh_setting_roundtrip(qapp):
     assert page.save()["restore_refresh_minutes"] == 120
     page._restore_refresh_spin.setValue(0)
     assert page.save()["restore_refresh_minutes"] == 0
+
+
+def test_preferences_page_minimum_size_stays_compact(qapp):
+    """The window cannot shrink below its widest page's minimum (#64 regression).
+
+    A row of widgets accidentally added to a horizontal layout as siblings
+    once made this page hundreds of pixels wide, locking the main window's
+    minimum width. Keep the page comfortably inside the 900x640 design size.
+    """
+    page = PreferencesPage()
+    hint = page.minimumSizeHint()
+    assert hint.width() <= 700, f"Preferences page minimum width regressed: {hint.width()}"
+    assert hint.height() <= 900, f"Preferences page minimum height regressed: {hint.height()}"

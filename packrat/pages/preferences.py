@@ -64,8 +64,9 @@ class PreferencesPage(QWidget):
         root.addWidget(behaviour_box)
 
         performance_box = QGroupBox("Performance")
-        performance_layout = QHBoxLayout(performance_box)
-        performance_layout.addWidget(QLabel("Re-list snapshots on the Restore page at most every:"))
+        performance_layout = QVBoxLayout(performance_box)
+        refresh_row = QHBoxLayout()
+        refresh_row.addWidget(QLabel("Re-list snapshots on the Restore page at most every:"))
         self._restore_refresh_spin = QSpinBox()
         self._restore_refresh_spin.setRange(0, 1440)
         self._restore_refresh_spin.setSuffix(" min")
@@ -77,8 +78,9 @@ class PreferencesPage(QWidget):
             "backup finishes or when you click Refresh."
         )
         self._restore_refresh_spin.valueChanged.connect(self._on_changed)
-        performance_layout.addWidget(self._restore_refresh_spin)
-        performance_layout.addStretch(1)
+        refresh_row.addWidget(self._restore_refresh_spin)
+        refresh_row.addStretch(1)
+        performance_layout.addLayout(refresh_row)
 
         cloud_row = QHBoxLayout()
         cloud_row.addWidget(QLabel("Cloud destination tuning:"))
