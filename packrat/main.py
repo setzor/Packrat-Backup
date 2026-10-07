@@ -9,6 +9,7 @@ from typing import Optional
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import (
+    QApplication,
     QDialog,
     QFileDialog,
     QHBoxLayout,
@@ -781,6 +782,20 @@ class MainWindow(QMainWindow):
         self.activateWindow()
 
     def closeEvent(self, event) -> None:
+        # An exception escaping a Qt event handler crashes the whole app on
+        # exit (observed as a SEGV inside CPython's traceback printing on
+        # Python 3.14). Close/quit must never take the app down.
+        try:
+            self._handle_close(event)
+        except Exception:
+            log.exception("closeEvent failed")
+            if event is not None:
+                event.accept()
+            app = QApplication.instance()
+            if app is not None:
+                app.quit()
+
+    def _handle_close(self, event) -> None:
         if not self.settings.close_to_tray:
             self._quit_app(event)
             return
@@ -806,9 +821,9 @@ class MainWindow(QMainWindow):
                 return
         if event is not None:
             event.accept()
-        from PyQt6.QtWidgets import QApplication
-
-        QApplication.instance().quit()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
 
     def _on_quit(self) -> None:
         self._quit_app()
