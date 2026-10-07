@@ -33,12 +33,16 @@ class ResticRunner(QObject):
     files_listed = pyqtSignal(list)  # parsed restic ls nodes
     dry_run_ready = pyqtSignal(dict)  # parsed restic backup --dry-run summary
 
+    prune_stats_ready = pyqtSignal(dict)  # parsed restic prune stats
+
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._process: Optional[QProcess] = None
         self._operation = ""
         self._buffer = ""
+        self._stderr_text = ""
         self._last_percent: Optional[int] = None
+        self._stopping = False
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
 
@@ -91,9 +95,19 @@ class ResticRunner(QObject):
         self._process = proc
         self._operation = operation
         self._buffer = ""
+        self._stderr_text = ""
         self._last_percent: Optional[int] = None
+        self._stopping = False
         self.last_backup_summary = {}
         proc.start()
+
+    def stop(self) -> None:
+        """Terminate the running restic operation (and its rclone child)."""
+        proc = self._process
+        if proc is None or proc.state() == QProcess.ProcessState.NotRunning:
+            return
+        self._stopping = True
+        proc.terminate()
 
     # ------------------------------------------------------------------ operations
     def init(self, repo: str, password: str, options: Optional[dict] = None) -> None:
@@ -196,6 +210,7 @@ class ResticRunner(QObject):
 
     def _on_stderr(self, proc: QProcess) -> None:
         data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
+        self._stderr_text += data
         self._on_stderr_text(data)
 
     def _on_stderr_text(self, data: str) -> None:
@@ -245,8 +260,18 @@ class ResticRunner(QObject):
             self.files_listed.emit(_parse_ls_nodes(stdout))
         elif self._operation == "dry-run" and success:
             self.dry_run_ready.emit(_parse_dry_run_summary(stdout))
+        elif self._operation == "prune" and success:
+            self.prune_stats_ready.emit(_parse_prune_stats(stderr or self._stderr_text))
+        if self._stopping and not success:
+            self._stopping = False
+            message = "Stopped by user."
+            self._buffer = ""
+            self._stderr_text = ""
+            self.finished.emit(False, message)
+            return
         message = _result_message(self._operation, success, exit_code, stderr)
         self._buffer = ""
+        self._stderr_text = ""
         self.finished.emit(success, message)
 
     def _on_error(self, proc: QProcess, error) -> None:
@@ -284,6 +309,45 @@ def _human_size(num: float) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{value:.1f} PiB"
+
+
+def _parse_prune_stats(stderr: str) -> dict:
+    """Parse restic prune's stats block (#63).
+
+    restic prune prints (on stderr, non-JSON):
+
+        to delete: 124233 blobs / 155.654 GiB
+        total prune: 124527 blobs / 155.676 GiB
+
+    "total prune" counts everything removed from the repository,
+    including data left over by interrupted backups.
+    """
+    import re
+
+    stats: dict = {"blobs": 0, "bytes": 0}
+    match = re.search(r"total prune:\s+(\d+) blobs / ([0-9.]+) ([kMGTP]?i?B)", stderr)
+    if match:
+        stats["blobs"] = int(match.group(1))
+        stats["bytes"] = _parse_size(match.group(2), match.group(3))
+    return stats
+
+
+def _parse_size(value: str, unit: str) -> int:
+    multipliers = {
+        "B": 1,
+        "kB": 1000,
+        "KB": 1000,
+        "KiB": 1024,
+        "MB": 1000**2,
+        "MiB": 1024**2,
+        "GB": 1000**3,
+        "GiB": 1024**3,
+        "TB": 1000**4,
+        "TiB": 1024**4,
+        "PB": 1000**5,
+        "PiB": 1024**5,
+    }
+    return int(float(value) * multipliers.get(unit, 1))
 
 
 def _parse_snapshots(stdout: str) -> List[dict]:

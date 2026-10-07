@@ -48,6 +48,7 @@ class RestorePage(QWidget):
     refresh_requested = pyqtSignal()
     restore_requested = pyqtSignal(str, str)
     browse_requested = pyqtSignal(str, str)
+    cleanup_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -135,6 +136,21 @@ class RestorePage(QWidget):
         self._restore_button.setMinimumHeight(44)
         self._restore_button.clicked.connect(self._on_restore)
         root.addWidget(self._restore_button)
+        cleanup_box = QGroupBox("Repository maintenance")
+        cleanup_layout = QHBoxLayout(cleanup_box)
+        self._cleanup_button = QPushButton("Clean Up Incomplete Backups")
+        self._cleanup_button.setToolTip(
+            "Interrupted or failed backups can leave partial data in the "
+            "repository that no snapshot uses. This removes it and frees "
+            "the space it was taking up. Safe to run at any time."
+        )
+        self._cleanup_button.clicked.connect(self.cleanup_requested.emit)
+        self._cleanup_label = QLabel("")
+        self._cleanup_label.setStyleSheet("color: #555;")
+        self._cleanup_label.setWordWrap(True)
+        cleanup_layout.addWidget(self._cleanup_button)
+        cleanup_layout.addWidget(self._cleanup_label, 1)
+        root.addWidget(cleanup_box)
         root.addStretch(1)
 
     def _on_browse(self) -> None:
@@ -183,6 +199,21 @@ class RestorePage(QWidget):
         self._restore_button.setEnabled(not running)
         self._refresh_button.setEnabled(not running)
         self._browse_button.setEnabled(not running)
+
+    def set_cleaning_up(self, cleaning: bool) -> None:
+        self._cleanup_button.setText("Cleaning up…" if cleaning else "Clean Up Incomplete Backups")
+        self._cleanup_button.setEnabled(not cleaning)
+
+    def set_cleanup_result(self, blobs: int, size_bytes: int) -> None:
+        from ..restic import _human_size
+
+        if not blobs and not size_bytes:
+            self._cleanup_label.setText("Nothing to clean up — the repository is tidy.")
+            return
+        files_text = f"{blobs} files" if blobs else "data"
+        self._cleanup_label.setText(
+            f"Cleaned up {files_text} worth {_human_size(size_bytes)} of unused space."
+        )
 
     def set_loading(self, loading: bool) -> None:
         self._loading_label.setVisible(loading)

@@ -36,6 +36,7 @@ class BackupJob(QObject):
         self.backend = backend
         self._running = False
         self.last_operation: str = ""
+        self._starting_operation: str = ""
         self._started_at: Optional[str] = ""
         self._started_monotonic = 0.0
         backend.operation_finished.connect(self._on_operation_finished)
@@ -50,6 +51,7 @@ class BackupJob(QObject):
         if not self.settings.folders:
             self.finished.emit(False, "No folders are selected to back up.")
             return False
+        self._starting_operation = "backup"
         try:
             self._running = True
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
@@ -66,6 +68,7 @@ class BackupJob(QObject):
     def start_restore(self, snapshot_id: str, target: str, includes=None) -> bool:
         if self.is_running():
             return False
+        self._starting_operation = "restore"
         try:
             self._running = True
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
@@ -88,6 +91,7 @@ class BackupJob(QObject):
     def _start_retention(self, starter) -> bool:
         if self.is_running():
             return False
+        self._starting_operation = "retention"
         try:
             self._running = True
             self._started_at = _dt.datetime.now().isoformat(timespec="seconds")
@@ -118,7 +122,7 @@ class BackupJob(QObject):
             self._analyze_changes()
             self.settings.save()
             notify("Packrat Backup", "Backup finished successfully.")
-        elif operation == "backup":
+        elif operation == "backup" and message != "Stopped by user.":
             notify_error("Packrat Backup", f"Backup failed: {message}")
         elif operation == "restore" and success:
             notify("Packrat Backup", "Restore finished successfully.")

@@ -113,6 +113,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         self.overview_page.backup_requested.connect(self.start_backup)
+        self.overview_page.stop_requested.connect(self._stop_backup)
         self.overview_page.restore_requested.connect(self._goto_restore)
         self.overview_page.verify_requested.connect(self.start_check)
         self.overview_page.preview_requested.connect(self.start_preview)
@@ -124,9 +125,11 @@ class MainWindow(QMainWindow):
         self.restore_page.refresh_requested.connect(self.refresh_snapshots)
         self.restore_page.restore_requested.connect(self.start_restore)
         self.restore_page.browse_requested.connect(self._on_browse_snapshot)
+        self.restore_page.cleanup_requested.connect(self._cleanup_incomplete)
+        self.backend.restic.prune_stats_ready.connect(self._on_prune_stats)
         self.backend.files_ready.connect(self._on_files_ready)
         self.preferences_page.changed.connect(self._save_preferences)
-        self.job.started.connect(self._on_backup_started)
+        self.job.started.connect(self._on_job_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.finished.connect(lambda *_: self._refresh_history())
         self.backend.operation_finished.connect(self._maybe_auto_cleanup)
@@ -573,13 +576,65 @@ class MainWindow(QMainWindow):
             self._browser = None
 
     # ------------------------------------------------------------------ events
-    def _on_backup_started(self) -> None:
-        self.overview_page.set_backup_enabled(False)
+    def _on_job_started(self) -> None:
         self.overview_page.clear_progress()
-        self.restore_page.set_enabled_state(True)
         self.restore_page.clear_restore_progress()
-        self.tray.set_state(running=True, status_text="Backup running…")
-        self._refresh_overview(running=True)
+        self.overview_page.set_backup_running(self.job._starting_operation == "backup")
+        if self.job._starting_operation == "backup":
+            self.restore_page.set_enabled_state(True)
+            self.tray.set_state(running=True, status_text="Backup running…")
+            self._refresh_overview(running=True)
+
+    def _stop_backup(self) -> None:
+        """Stop the running backup cleanly (#63)."""
+        if not self.job.is_running():
+            return
+        log.info("Stop requested by user")
+        self.overview_page.set_progress(-1, "Stopping…")
+        self.backend.restic.stop()
+
+    def _cleanup_incomplete(self) -> None:
+        """Remove partial data left by interrupted backups (#63)."""
+        if self.job.is_running():
+            QMessageBox.information(
+                self, "Packrat Backup", "Wait for the running operation to finish first."
+            )
+            return
+        if not self.backend.is_configured():
+            QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
+            return
+        if not self.backend.has_password():
+            self._apply_password_from_store()
+        if not self.backend.has_password():
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "No backup password is stored; cannot clean up the repository.",
+            )
+            return
+        confirm = QMessageBox.question(
+            self,
+            "Packrat Backup",
+            "Remove leftover data from interrupted backups and free its space?\n"
+            "This never touches data belonging to your saved snapshots.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if confirm != QMessageBox.StandardButton.Yes:
+            return
+        self.restore_page.set_cleaning_up(True)
+        self.restore_page._cleanup_label.setText("")
+        self.tray.set_state(running=True, status_text="Cleaning up…")
+        try:
+            self.backend.prune()
+        except (BackendError, ResticProcessError) as exc:
+            self.restore_page.set_cleaning_up(False)
+            self.tray.set_state(running=False, status_text="Packrat Backup")
+            QMessageBox.warning(self, "Packrat Backup", f"Could not clean up: {exc}")
+
+    def _on_prune_stats(self, stats: dict) -> None:
+        self.restore_page.set_cleaning_up(False)
+        self.restore_page.set_cleanup_result(int(stats.get("blobs", 0)), int(stats.get("bytes", 0)))
+        self.tray.set_state(running=False, status_text="Packrat Backup")
 
     def _on_progress(self, percent: int, message: str) -> None:
         if self.backend.restic._operation == "restore":
@@ -596,6 +651,7 @@ class MainWindow(QMainWindow):
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
     def _on_job_finished(self, success: bool, message: str) -> None:
+        self.overview_page.set_backup_running(False)
         if self.job.last_operation in ("prune", "forget"):
             self._on_cleanup_finished(success, message)
             return
@@ -605,6 +661,9 @@ class MainWindow(QMainWindow):
         self.restore_page.clear_restore_progress()
         self._refresh_overview()
         self.tray.set_state(running=False, status_text="Packrat Backup")
+        if message == "Stopped by user.":
+            self.tray.show_message("Packrat Backup", "Backup stopped. Saved snapshots are safe.")
+            return
         if not success:
             QMessageBox.warning(self, "Packrat Backup", message)
         else:
@@ -638,6 +697,7 @@ class MainWindow(QMainWindow):
         if self.job.last_operation == "prune" and success:
             self.settings.last_prune_time = _dt.datetime.now().isoformat(timespec="seconds")
             self.settings.save()
+        self.restore_page.set_cleaning_up(False)
         self.schedule_page.set_cleaning(False)
         self.overview_page.set_backup_enabled(True)
         self._refresh_overview()
