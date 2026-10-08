@@ -178,3 +178,42 @@ def test_byte_counter_done_equals_total_shows_finishing():
     assert "all data processed" in text
     assert "0s" not in text
     assert "of" not in text
+
+
+def test_clean_ansi_strips_escape_sequences():
+    from packrat.restic import _clean_ansi
+
+    noisy = "\x1b[31mFatal:\x1b[0m repository does not exist\x1b[?25h"
+    assert _clean_ansi(noisy) == "Fatal: repository does not exist"
+
+
+def test_result_message_includes_accumulated_stderr_detail():
+    from packrat.restic import _result_message
+
+    stderr = "\x1b[31mFatal:\x1b[0m unable to open config file\n"
+    msg = _result_message("prune", False, 11, stderr)
+    assert "Cleanup complete failed (exit 11)" in msg
+    assert "unable to open config file" in msg
+    assert "\x1b" not in msg
+
+
+def test_result_message_detail_survives_empty_drained_pipe():
+    from packrat.restic import _result_message
+
+    assert _result_message("prune", False, 11, "") == "Cleanup complete failed (exit 11)"
+
+
+def test_stderr_progress_lines_are_ansi_cleaned():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
+
+    runner._last_percent = None
+    runner._on_stderr_text("\x1b[36mTransferred: 3 GiB / 3 GiB, 100%\x1b[0m\r")
+
+    pct, text = seen[-1]
+    assert pct == -1
+    assert "\x1b" not in text
+    assert "Transferred" in text
