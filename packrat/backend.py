@@ -99,6 +99,50 @@ class BackupBackend(QObject):
     def init_repository(self) -> None:
         self.prepare()
 
+    def delete_interrupted_tmp_files(self) -> Tuple[bool, str]:
+        """Delete abandoned ``-tmp-`` pack files left by killed backups.
+
+        restic writes packs under a temporary ``<id>-tmp-<n>`` name and
+        renames them only after a complete upload. No restic command
+        (prune, check) removes files that were mid-upload when the process
+        was killed, so they linger in ``data/`` forever; this removes them.
+        """
+        import subprocess
+
+        from .tools import rclone_path
+
+        cfg = self.settings.backend_cfg
+        if cfg.backend is Backend.RCLONE:
+            binary = rclone_path()
+            if not binary:
+                return False, "rclone binary not found"
+            target = f"{cfg.rclone_remote}:{cfg.rclone_path.strip('/')}/data"
+            try:
+                result = subprocess.run(
+                    [binary, "delete", target, "--include", "*-tmp-*", "-v"],
+                    capture_output=True,
+                    text=True,
+                    timeout=600,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                return False, str(exc)
+            if result.returncode != 0:
+                return False, _clean_stderr(result.stderr)
+            return True, ""
+        path = os.path.join(os.path.expanduser(cfg.local_path), "data")
+        if not os.path.isdir(path):
+            return True, ""
+        import glob
+
+        pattern = os.path.join(path, "*", "*-tmp-*")
+        for entry in glob.glob(pattern):
+            try:
+                os.remove(entry)
+            except OSError:
+                continue
+        return True, ""
+
     def remove_stale_lock(self) -> Tuple[bool, str]:
         """Run `restic unlock` synchronously to remove stale locks.
 

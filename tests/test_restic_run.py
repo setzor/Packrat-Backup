@@ -226,3 +226,77 @@ def test_result_message_detects_stale_lock():
     msg = _result_message("prune", False, 11, stderr)
     assert "exit 11" in msg
     assert "unlock" in msg
+
+
+def test_delete_interrupted_tmp_files_local(tmp_path):
+    import glob
+    import sys
+    import types
+
+    for mod in ("PyQt6", "PyQt6.QtCore"):
+        sys.modules.pop(mod, None)
+    m = types.ModuleType("PyQt6")
+    c = types.ModuleType("PyQt6.QtCore")
+
+    class Sig:
+        def __init__(self, *a, **k):
+            self.f = None
+
+        def connect(self, f):
+            self.f = f
+            return f
+
+        def emit(self, *a):
+            return self.f(*a) if self.f else None
+
+    class Obj:
+        def __init__(self, *a, **k):
+            pass
+
+    class SettingsStub:
+        def __init__(self, *a, **k):
+            pass
+
+        def value(self, key, default=None, **k):
+            return default
+
+        def setValue(self, *a, **k):
+            pass
+
+        def sync(self, *a, **k):
+            pass
+
+        def beginGroup(self, *a, **k):
+            pass
+
+        def endGroup(self, *a, **k):
+            pass
+
+    c.QObject = Obj
+    c.QProcess = Obj
+    c.QProcessEnvironment = Obj
+    c.pyqtSignal = Sig
+    c.QSettings = SettingsStub
+    m.QtCore = c
+    sys.modules["PyQt6"] = m
+    sys.modules["PyQt6.QtCore"] = c
+
+    from packrat.backend import BackupBackend
+    from packrat.settings import Backend, Settings
+
+    repo = tmp_path / "repo"
+    data = repo / "data" / "ab"
+    data.mkdir(parents=True)
+    (data / "ab12...-tmp-123").write_bytes(b"partial upload")
+    (data / "ab12...definitely-a-pack").write_bytes(b"real pack")
+
+    s = Settings()
+    s.backend_cfg.backend = Backend.LOCAL
+    s.backend_cfg.local_path = str(repo)
+    b = BackupBackend(s)
+
+    ok, detail = b.delete_interrupted_tmp_files()
+
+    assert ok
+    assert not glob.glob(str(repo / "data" / "*" / "*-tmp-*"))
+    assert (data / "ab12...definitely-a-pack").exists()
