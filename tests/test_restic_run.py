@@ -1,6 +1,8 @@
 import stat
 import textwrap
 
+import pytest
+
 from packrat.restic import Restic
 
 
@@ -226,3 +228,30 @@ def test_result_message_detects_stale_lock():
     msg = _result_message("prune", False, 11, stderr)
     assert "exit 11" in msg
     assert "unlock" in msg
+
+
+def test_delete_interrupted_tmp_files_local(tmp_path):
+    """Abandoned -tmp- pack files are removed; real packs survive."""
+    import glob
+
+    QtCore = pytest.importorskip("PyQt6.QtCore")
+    pytest.skip("requires full PyQt6 widgets") if not hasattr(QtCore, "QSettings") else None
+    from packrat.backend import BackupBackend
+    from packrat.settings import Backend, Settings
+
+    repo = tmp_path / "repo"
+    data = repo / "data" / "ab"
+    data.mkdir(parents=True)
+    (data / "ab12...-tmp-123").write_bytes(b"partial upload")
+    (data / "ab12...definitely-a-pack").write_bytes(b"real pack")
+
+    s = Settings()
+    s.backend_cfg.backend = Backend.LOCAL
+    s.backend_cfg.local_path = str(repo)
+    b = BackupBackend(s)
+
+    ok, detail = b.delete_interrupted_tmp_files()
+
+    assert ok
+    assert not glob.glob(str(repo / "data" / "*" / "*-tmp-*"))
+    assert (data / "ab12...definitely-a-pack").exists()

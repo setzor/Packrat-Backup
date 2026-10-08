@@ -649,6 +649,11 @@ class MainWindow(QMainWindow):
         self.restore_page.set_cleaning_up(False)
         self.restore_page.set_cleanup_result(int(stats.get("blobs", 0)), int(stats.get("bytes", 0)))
         self.tray.set_state(running=False, status_text="Packrat Backup")
+        ok, detail = self.backend.delete_interrupted_tmp_files()
+        if not ok:
+            log.warning("Failed to remove interrupted-upload tmp files: %s", detail)
+        elif detail:
+            log.info("Removed interrupted-upload tmp files")
 
     def _on_progress(self, percent: int, message: str) -> None:
         if self.backend.restic._operation == "restore":
