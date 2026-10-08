@@ -226,6 +226,20 @@ class BackupBackend(QObject):
             options=self.cloud_options(),
         )
 
+    def prune_orphans(self) -> None:
+        """Remove unreferenced data left by interrupted backups.
+
+        ``forget --prune`` only repacks data still referenced by kept
+        snapshots; orphaned packs from interrupted backups (no snapshot
+        references them) are only removed by a raw ``prune``, which is what
+        this runs.
+        """
+        self.restic.prune_orphans(
+            self.repo_location(),
+            self._password,
+            options=self.cloud_options(),
+        )
+
     def prune_due(self) -> bool:
         """True when the scheduled auto-prune interval has elapsed (#64)."""
         last = str(self.settings.last_prune_time or "").strip()

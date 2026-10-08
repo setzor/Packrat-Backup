@@ -178,6 +178,20 @@ class ResticRunner(QObject):
             options=options,
         )
 
+    def prune_orphans(self, repo: str, password: str, options: Optional[dict] = None) -> None:
+        """Run a raw prune to delete unreferenced packs.
+
+        ``forget --prune`` skips orphaned data when no snapshots exist;
+        only ``restic prune`` deletes "unreferenced packs".
+        """
+        self._launch(
+            repo,
+            password,
+            ["prune"],
+            "prune",
+            options=options,
+        )
+
     def forget(
         self, repo: str, password: str, keep_args: List[str], options: Optional[dict] = None
     ) -> None:
