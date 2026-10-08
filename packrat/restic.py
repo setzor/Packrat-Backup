@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from typing import Any, List, Optional, Tuple
 
@@ -222,7 +223,7 @@ class ResticRunner(QObject):
 
     def _on_stderr_text(self, data: str) -> None:
         for line in data.splitlines():
-            stripped = line.strip()
+            stripped = _clean_ansi(line).strip()
             if not stripped:
                 continue
             if self._last_percent is None:
@@ -298,9 +299,9 @@ class ResticRunner(QObject):
         proc = self._process
         self._process = None
         stdout = self._buffer
-        stderr = ""
+        stderr = self._stderr_text
         if proc is not None:
-            stderr = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
+            stderr += bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
             proc.deleteLater()
         success = exit_code == 0 and exit_status == QProcess.ExitStatus.NormalExit
         if self._operation == "snapshots" and success:
@@ -508,12 +509,25 @@ def _result_message(operation: str, success: bool, exit_code: int, stderr: str) 
 
 
 def _clean_stderr(stderr: str) -> str:
-    lines = [line.strip() for line in stderr.splitlines() if line.strip()]
+    lines = [_clean_ansi(line).strip() for line in stderr.splitlines() if line.strip()]
     for keyword in ("wrong password", "password", "does not exist", "unable to open"):
         for line in lines:
             if keyword in line.lower():
                 return line
     return lines[-1] if lines else ""
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def _clean_ansi(text: str) -> str:
+    """Strip ANSI escape sequences rclone/restic write to stderr.
+
+    rclone emits colour codes and progress redraws on stderr; left in, a
+    single line can become a huge unbreakable string that stretches the
+    window when it lands in the progress label.
+    """
+    return _ANSI_RE.sub("", text)
 
 
 _DEFAULT_RCLONE_ARGS = [
