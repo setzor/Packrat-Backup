@@ -186,8 +186,7 @@ class MainWindow(QMainWindow):
         answer = QMessageBox.question(
             self,
             "Packrat Backup",
-            f"A scheduled backup was missed (last backup: {last_text}).\n\n"
-            "Start it now?",
+            f"A scheduled backup was missed (last backup: {last_text}).\n\nStart it now?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No,
         )
