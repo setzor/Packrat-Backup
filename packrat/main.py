@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at: Optional[_dt.datetime] = None
         self._snapshots_loaded_after_backup: str = ""
         self._verify_pending: bool = False
+        self._cleanup_after_stop: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -601,10 +602,17 @@ class MainWindow(QMainWindow):
             self.overview_page.set_backup_enabled(False)
 
     def _stop_backup(self) -> None:
-        """Stop the running backup cleanly (#63)."""
+        """Stop the running backup cleanly (#63).
+
+        A stopped backup leaves unreferenced data in the repository (the
+        packs uploaded so far, plus a stale lock). The user asked for the
+        backup to stop, not for the leftover data to stay forever, so after
+        the process dies we automatically unlock and prune the orphans.
+        """
         if not self.job.is_running():
             return
         log.info("Stop requested by user")
+        self._cleanup_after_stop = True
         self.overview_page.set_progress(-1, "Stopping…")
         self.backend.restic.stop()
 
@@ -669,6 +677,26 @@ class MainWindow(QMainWindow):
         if percent >= 0:
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
+    def _start_post_stop_cleanup(self) -> None:
+        """Unlock and prune the data a stopped backup leaves behind.
+
+        Runs only when a backup was stopped by the user; a normally finished
+        backup references everything it uploaded, so there is nothing to do.
+        """
+        if not self._cleanup_after_stop:
+            return
+        self._cleanup_after_stop = False
+        if not self.backend.is_configured() or not self.backend.has_password():
+            return
+        ok, detail = self.backend.remove_stale_lock()
+        if not ok:
+            log.warning("Post-stop unlock failed: %s", detail)
+            return
+        if self.job.start_prune_orphans():
+            log.info("Cleaning up data left by the stopped backup")
+            self.overview_page.set_progress(-1, "Cleaning up after stop…")
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+
     def _on_job_finished(self, success: bool, message: str) -> None:
         self.overview_page.set_backup_running(False)
         if self.job.last_operation in ("prune", "forget"):
@@ -682,6 +710,7 @@ class MainWindow(QMainWindow):
         self.tray.set_state(running=False, status_text="Packrat Backup")
         if message == "Stopped by user.":
             self.tray.show_message("Packrat Backup", "Backup stopped. Saved snapshots are safe.")
+            self._start_post_stop_cleanup()
             return
         if not success:
             QMessageBox.warning(self, "Packrat Backup", message)
