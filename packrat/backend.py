@@ -42,6 +42,7 @@ class BackupBackend(QObject):
         self._password = ""
         self._initing_for_backup = False
         self._repo_probe: Optional[tuple] = None
+        self._snapshot_count: Optional[int] = None
         self.restic.finished.connect(self._on_restic_finished)
         self.restic.progress.connect(self.progress)
         self.restic.snapshots_listed.connect(self._on_snapshots)
@@ -284,6 +285,14 @@ class BackupBackend(QObject):
             options=self.cloud_options(),
         )
 
+    def has_snapshots(self) -> bool:
+        """True when the last snapshot listing saw at least one snapshot.
+
+        Unknown (never listed) counts as having snapshots so retention
+        cleanup keeps its normal ``forget --prune`` behaviour.
+        """
+        return self._snapshot_count is None or self._snapshot_count > 0
+
     def prune_due(self) -> bool:
         """True when the scheduled auto-prune interval has elapsed (#64)."""
         last = str(self.settings.last_prune_time or "").strip()
@@ -344,6 +353,7 @@ class BackupBackend(QObject):
             self.operation_finished.emit(operation, success, message)
 
     def _on_snapshots(self, snapshots: list) -> None:
+        self._snapshot_count = len(snapshots)
         self.snapshots_ready.emit(snapshots)
 
     def _on_files(self, nodes: list) -> None:
