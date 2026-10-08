@@ -100,6 +100,109 @@ class BackupBackend(QObject):
     def init_repository(self) -> None:
         self.prepare()
 
+    def _terminate_orphan_rclone_serves(self) -> None:
+        """Kill leftover ``rclone serve restic --stdio`` processes.
+
+        When a backup is hard-killed, restic dies but its rclone child can
+        keep flushing buffered uploads for several seconds — recreating the
+        very files a repository reset just purged. Best effort only.
+        """
+        import subprocess
+
+        from .tools import rclone_path
+
+        binary = rclone_path()
+        if not binary:
+            return
+        me = str(os.getpid())
+        try:
+            result = subprocess.run(
+                ["pgrep", "-f", "serve restic --stdio"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            pids = []
+            for pid in result.stdout.split():
+                if not pid.isdigit() or pid == me:
+                    continue
+                try:
+                    with open(f"/proc/{pid}/cmdline", "rb") as fh:
+                        cmdline = fh.read().replace(b"\0", b" ").decode("utf-8", "replace")
+                except OSError:
+                    continue
+                if "rclone" not in cmdline or "pgrep" in cmdline or "sh -c" in cmdline:
+                    continue
+                pids.append(pid)
+            for pid in pids:
+                try:
+                    subprocess.run(["kill", "-TERM", pid], timeout=5, check=False)
+                except subprocess.SubprocessError:
+                    continue
+            if pids:
+                import time
+
+                time.sleep(3)
+        except (OSError, subprocess.SubprocessError):
+            return
+
+    def reset_repository_sync(self) -> Tuple[bool, str]:
+        """Nuclear reset when there are provably zero snapshots.
+
+        Purge the whole repository folder on the remote (or remove it
+        locally) and re-run ``restic init``. Unlike prune, this cannot be
+        defeated by orphaned indexes, unindexed packs or leftover tmp
+        files — nothing survives. Only call after confirming the
+        repository has no snapshots. Returns (ok, detail).
+        """
+        import shutil
+        import subprocess
+
+        from .tools import rclone_path
+
+        cfg = self.settings.backend_cfg
+        if cfg.backend is Backend.RCLONE:
+            self._terminate_orphan_rclone_serves()
+            binary = rclone_path()
+            binary = rclone_path()
+            if not binary:
+                return False, "rclone binary not found"
+            target = f"{cfg.rclone_remote}:{cfg.rclone_path.strip('/')}"
+            try:
+                result = subprocess.run(
+                    [binary, "purge", target, "-v"],
+                    capture_output=True,
+                    text=True,
+                    timeout=3600,
+                    check=False,
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                return False, str(exc)
+            probe = subprocess.run(
+                [binary, "lsd", target],
+                capture_output=True,
+                text=True,
+                timeout=120,
+                check=False,
+            )
+            if probe.returncode == 0:
+                return False, _clean_stderr(result.stderr or "purge left the directory behind")
+        else:
+            path = os.path.expanduser(cfg.local_path)
+            if os.path.isdir(path):
+                shutil.rmtree(path, ignore_errors=True)
+        ok, _, stderr = Restic.run(
+            ["--repo", self.repo_location(), "init", "--repository-version", "2"],
+            timeout=300,
+            password=self._password,
+            options=self.cloud_options(),
+        )
+        if not ok:
+            return False, _clean_stderr(stderr)
+        self._repo_probe = None
+        return True, ""
+
     def delete_interrupted_tmp_files(self) -> Tuple[bool, str]:
         """Delete abandoned ``-tmp-`` pack files left by killed backups.
 

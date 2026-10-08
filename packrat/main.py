@@ -635,23 +635,66 @@ class MainWindow(QMainWindow):
                 "No backup password is stored; cannot clean up the repository.",
             )
             return
+        if self.backend.has_snapshots():
+            confirm = QMessageBox.question(
+                self,
+                "Packrat Backup",
+                "Remove leftover data from interrupted backups and free its space?\n"
+                "This never touches data belonging to your saved snapshots.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+            if not self.job.start_prune_orphans():
+                self.restore_page.set_cleaning_up(False)
+                QMessageBox.information(
+                    self, "Packrat Backup", "A backup or cleanup is already running."
+                )
+                return
+            self.restore_page.set_cleaning_up(True)
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+            return
         confirm = QMessageBox.question(
             self,
             "Packrat Backup",
-            "Remove leftover data from interrupted backups and free its space?\n"
-            "This never touches data belonging to your saved snapshots.",
+            "This repository has no snapshots — all data in it is leftover from interrupted backups.\n\n"
+            "Delete the entire repository and recreate it empty?\n"
+            "This is the fastest way to free the space and cannot be undone.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        if not self.job.start_prune_orphans():
-            self.restore_page.set_cleaning_up(False)
-            QMessageBox.information(
-                self, "Packrat Backup", "A backup or cleanup is already running."
-            )
-            return
+        self._reset_repository()
+
+    def _reset_repository(self) -> None:
+        """Purge and re-init a snapshot-less repository, off the UI thread."""
+        import threading
+
         self.restore_page.set_cleaning_up(True)
-        self.tray.set_state(running=True, status_text="Cleaning up…")
+        self.tray.set_state(running=True, status_text="Resetting repository…")
+
+        def worker() -> None:
+            ok, detail = self.backend.reset_repository_sync()
+
+            def deliver() -> None:
+                self.restore_page.set_cleaning_up(False)
+                self.tray.set_state(running=False, status_text="Packrat Backup")
+                if ok:
+                    log.info("Repository reset: purged and re-initialised")
+                    self.backend._snapshot_count = None
+                    self.tray.show_message(
+                        "Packrat Backup", "Repository reset. All leftover data was deleted."
+                    )
+                else:
+                    log.warning("Repository reset failed: %s", detail)
+                    QMessageBox.warning(
+                        self, "Packrat Backup", f"Repository reset failed: {detail}"
+                    )
+
+            QTimer.singleShot(0, deliver)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _on_prune_stats(self, stats: dict) -> None:
         self.restore_page.set_cleaning_up(False)

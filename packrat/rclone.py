@@ -27,6 +27,7 @@ class RcloneRunner(QObject):
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
         self._process: Optional[QProcess] = None
+        self._pending: Optional[str] = None
 
     @staticmethod
     def available() -> bool:
@@ -91,6 +92,11 @@ class RcloneRunner(QObject):
     def about(self, remote: str) -> None:
         self._pending = "about"
         self._launch(["about", f"{remote}:"])
+
+    def purge(self, remote: str, path: str) -> None:
+        """Delete a directory and everything under it."""
+        self._pending = "purge"
+        self._launch(["purge", f"{remote}:{path}"])
 
 
 def list_remotes_sync() -> List[str]:
