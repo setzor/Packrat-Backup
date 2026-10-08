@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from typing import Any, List, Optional, Tuple
 
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
@@ -43,6 +44,9 @@ class ResticRunner(QObject):
         self._stderr_text = ""
         self._last_percent: Optional[int] = None
         self._stopping = False
+        self._speed_time: Optional[float] = None
+        self._speed_done: int = 0
+        self._speed_bytes_per_sec: float = 0.0
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
 
@@ -98,6 +102,9 @@ class ResticRunner(QObject):
         self._stderr_text = ""
         self._last_percent: Optional[int] = None
         self._stopping = False
+        self._speed_time = None
+        self._speed_done = 0
+        self._speed_bytes_per_sec = 0.0
         self.last_backup_summary = {}
         proc.start()
 
@@ -232,7 +239,7 @@ class ResticRunner(QObject):
             if self._last_percent is not None:
                 percent = max(percent, self._last_percent)
             self._last_percent = percent
-            self.progress.emit(percent, _status_text(msg))
+            self.progress.emit(percent, _status_text(msg, self._byte_counter_text(msg)))
         elif kind == "summary":
             snapshot_id = msg.get("snapshot_id")
             if snapshot_id:
@@ -244,6 +251,46 @@ class ResticRunner(QObject):
                 100,
                 f"Backed up {files} files ({_human_size(size)} new data).",
             )
+
+    def _byte_counter_text(self, msg: dict) -> str:
+        """Human-readable "10 GiB of 200 GiB" plus live speed and ETA.
+
+        restic's ``percent_done`` is bytes-based and can sit at high values
+        for hours while thousands of tiny files crawl through rclone; the
+        byte counter proves the upload is still moving and shows what's
+        left. Returns an empty string when restic hasn't reported totals.
+        """
+        total = int(msg.get("total_bytes") or 0)
+        remaining = int(msg.get("bytes_remaining") or 0)
+        if total <= 0:
+            return ""
+        done = max(total - remaining, 0)
+        parts = [f"{_human_size(done)} of {_human_size(total)}"]
+        speed = self._update_speed(done)
+        if speed >= 1:
+            parts.append(f"{_human_size(speed)}/s")
+            parts.append(f"{_eta_text((total - done) / speed)} left")
+        return ", ".join(parts)
+
+    def _update_speed(self, done: int) -> float:
+        now = time.monotonic()
+        if self._speed_time is None:
+            self._speed_time = now
+            self._speed_done = done
+            return 0.0
+        elapsed = now - self._speed_time
+        if elapsed < 1.0:
+            return self._speed_bytes_per_sec
+        rate = (done - self._speed_done) / elapsed
+        if rate < 0:
+            rate = 0.0
+        if self._speed_bytes_per_sec <= 0:
+            self._speed_bytes_per_sec = rate
+        else:
+            self._speed_bytes_per_sec = 0.5 * rate + 0.5 * self._speed_bytes_per_sec
+        self._speed_time = now
+        self._speed_done = done
+        return self._speed_bytes_per_sec
 
     def _on_finished(self, exit_code: int, exit_status) -> None:
         proc = self._process
@@ -294,14 +341,32 @@ def _json_lines(buffer: str):
         yield parsed
 
 
-def _status_text(msg: dict) -> str:
+def _status_text(msg: dict, counter: str = "") -> str:
     activity = msg.get("current_activity") or msg.get("action") or ""
     files = msg.get("files_done", 0)
     total = msg.get("total_files", 0)
+    parts = []
     if activity:
         suffix = f" ({files}/{total} files)" if total else ""
-        return f"{activity}{suffix}"
+        parts.append(f"{activity}{suffix}")
+    if counter:
+        parts.append(counter)
+    if parts:
+        return " — ".join(parts)
     return "Working..."
+
+
+def _eta_text(seconds: float) -> str:
+    secs = int(seconds)
+    if secs > 2 * 24 * 3600:
+        return "over 2 days"
+    hours, rem = divmod(secs, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}h {minutes}m"
+    if minutes:
+        return f"{minutes}m {secs}s"
+    return f"{secs}s"
 
 
 def _human_size(num: float) -> str:
