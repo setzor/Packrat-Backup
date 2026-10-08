@@ -129,10 +129,11 @@ def test_byte_counter_absent_without_totals():
     assert "of" not in text
 
 
-def test_speed_and_eta_appear_after_samples():
+def test_speed_and_eta_appear_after_samples_local():
     from packrat.restic import ResticRunner
 
     runner = ResticRunner()
+    runner._repo_is_cloud = False
     seen = []
     runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
 
@@ -148,6 +149,49 @@ def test_speed_and_eta_appear_after_samples():
     _, text = seen[-1]
     assert "/s" in text
     assert "left" in text
+
+
+def test_cloud_repo_shows_no_bogus_speed_or_eta():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner._repo_is_cloud = True
+    seen = []
+    runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
+
+    GiB = 1024**3
+    runner._handle_backup_message(
+        {"message_type": "status", "bytes_done": 190 * GiB, "total_bytes": 200 * GiB}
+    )
+    runner._handle_backup_message(
+        {"message_type": "status", "bytes_done": 195 * GiB, "total_bytes": 200 * GiB}
+    )
+
+    _, text = seen[-1]
+    assert "processed" in text
+    assert "/s" not in text
+    assert "left" not in text
+
+
+def test_cloud_tick_shows_uploading_note():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner._repo_is_cloud = True
+    seen = []
+    runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
+
+    runner._process = _RunningProc()
+    runner._operation = "backup"
+    runner._last_percent = 77
+    runner._last_total_bytes = 200 * 1024**3
+    runner._last_bytes_done = 150 * 1024**3
+    runner._tick_stale_speed()
+
+    pct, text = seen[-1]
+    assert pct == 77
+    assert "uploading to the cloud" in text
+    assert "/s" not in text
 
 
 def test_eta_text_formatting():
@@ -273,3 +317,55 @@ def test_has_snapshots_unknown_defaults_true():
     assert b.has_snapshots() is False
     b._snapshot_count = 3
     assert b.has_snapshots() is True
+
+
+class _RunningProc:
+    def state(self):
+        return 1
+
+
+def test_speed_decays_when_bytes_stop_advancing():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner._repo_is_cloud = False
+    seen = []
+    runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
+
+    runner._speed_time = None
+    GiB = 1024**3
+    runner._handle_backup_message(
+        {
+            "message_type": "status",
+            "percent_done": 0.9,
+            "bytes_done": 180 * GiB,
+            "total_bytes": 200 * GiB,
+        }
+    )
+    runner._speed_time -= 5
+    runner._handle_backup_message(
+        {
+            "message_type": "status",
+            "percent_done": 0.9,
+            "bytes_done": 190 * GiB,
+            "total_bytes": 200 * GiB,
+        }
+    )
+    fast = runner._speed_bytes_per_sec
+    assert fast > 0
+    runner._speed_time -= 60
+    runner._last_bytes_done = 190 * GiB
+
+    runner._process = _RunningProc()
+    runner._operation = "backup"
+    runner._last_percent = 90
+    runner._last_total_bytes = 200 * GiB
+    runner._last_bytes_done = 190 * GiB
+    runner._tick_stale_speed()
+    decayed = runner._speed_bytes_per_sec
+    assert decayed < fast
+    pct, text = seen[-1]
+    assert pct == 90
+    assert "190.0 GiB of 200.0 GiB" in text
+    if decayed < 1:
+        assert "waiting for the cloud upload" in text

@@ -212,7 +212,7 @@ class RestorePage(QWidget):
         if not blobs and not size_bytes:
             self._cleanup_label.setText("Nothing to clean up — the repository is tidy.")
             return
-        files_text = f"{blobs} files" if blobs else "data"
+        files_text = f"{blobs} files" if blobs else "leftover data"
         self._cleanup_label.setText(
             f"Cleaned up {files_text} worth {_human_size(size_bytes)} of unused space."
         )

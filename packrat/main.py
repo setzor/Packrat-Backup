@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at: Optional[_dt.datetime] = None
         self._snapshots_loaded_after_backup: str = ""
         self._verify_pending: bool = False
+        self._cleanup_after_stop: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -601,10 +602,17 @@ class MainWindow(QMainWindow):
             self.overview_page.set_backup_enabled(False)
 
     def _stop_backup(self) -> None:
-        """Stop the running backup cleanly (#63)."""
+        """Stop the running backup cleanly (#63).
+
+        A stopped backup leaves unreferenced data in the repository (the
+        packs uploaded so far, plus a stale lock). The user asked for the
+        backup to stop, not for the leftover data to stay forever, so after
+        the process dies we automatically unlock and prune the orphans.
+        """
         if not self.job.is_running():
             return
         log.info("Stop requested by user")
+        self._cleanup_after_stop = True
         self.overview_page.set_progress(-1, "Stopping…")
         self.backend.restic.stop()
 
@@ -627,23 +635,66 @@ class MainWindow(QMainWindow):
                 "No backup password is stored; cannot clean up the repository.",
             )
             return
+        if self.backend.has_snapshots():
+            confirm = QMessageBox.question(
+                self,
+                "Packrat Backup",
+                "Remove leftover data from interrupted backups and free its space?\n"
+                "This never touches data belonging to your saved snapshots.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            )
+            if confirm != QMessageBox.StandardButton.Yes:
+                return
+            if not self.job.start_prune_orphans():
+                self.restore_page.set_cleaning_up(False)
+                QMessageBox.information(
+                    self, "Packrat Backup", "A backup or cleanup is already running."
+                )
+                return
+            self.restore_page.set_cleaning_up(True)
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+            return
         confirm = QMessageBox.question(
             self,
             "Packrat Backup",
-            "Remove leftover data from interrupted backups and free its space?\n"
-            "This never touches data belonging to your saved snapshots.",
+            "This repository has no snapshots — all data in it is leftover from interrupted backups.\n\n"
+            "Delete the entire repository and recreate it empty?\n"
+            "This is the fastest way to free the space and cannot be undone.",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        if not self.job.start_prune_orphans():
-            self.restore_page.set_cleaning_up(False)
-            QMessageBox.information(
-                self, "Packrat Backup", "A backup or cleanup is already running."
-            )
-            return
+        self._reset_repository()
+
+    def _reset_repository(self) -> None:
+        """Purge and re-init a snapshot-less repository, off the UI thread."""
+        import threading
+
         self.restore_page.set_cleaning_up(True)
-        self.tray.set_state(running=True, status_text="Cleaning up…")
+        self.tray.set_state(running=True, status_text="Resetting repository…")
+
+        def worker() -> None:
+            ok, detail = self.backend.reset_repository_sync()
+
+            def deliver() -> None:
+                self.restore_page.set_cleaning_up(False)
+                self.tray.set_state(running=False, status_text="Packrat Backup")
+                if ok:
+                    log.info("Repository reset: purged and re-initialised")
+                    self.backend._snapshot_count = None
+                    self.tray.show_message(
+                        "Packrat Backup", "Repository reset. All leftover data was deleted."
+                    )
+                else:
+                    log.warning("Repository reset failed: %s", detail)
+                    QMessageBox.warning(
+                        self, "Packrat Backup", f"Repository reset failed: {detail}"
+                    )
+
+            QTimer.singleShot(0, deliver)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _on_prune_stats(self, stats: dict) -> None:
         self.restore_page.set_cleaning_up(False)
@@ -669,6 +720,26 @@ class MainWindow(QMainWindow):
         if percent >= 0:
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")
 
+    def _start_post_stop_cleanup(self) -> None:
+        """Unlock and prune the data a stopped backup leaves behind.
+
+        Runs only when a backup was stopped by the user; a normally finished
+        backup references everything it uploaded, so there is nothing to do.
+        """
+        if not self._cleanup_after_stop:
+            return
+        self._cleanup_after_stop = False
+        if not self.backend.is_configured() or not self.backend.has_password():
+            return
+        ok, detail = self.backend.remove_stale_lock()
+        if not ok:
+            log.warning("Post-stop unlock failed: %s", detail)
+            return
+        if self.job.start_prune_orphans():
+            log.info("Cleaning up data left by the stopped backup")
+            self.overview_page.set_progress(-1, "Cleaning up after stop…")
+            self.tray.set_state(running=True, status_text="Cleaning up…")
+
     def _on_job_finished(self, success: bool, message: str) -> None:
         self.overview_page.set_backup_running(False)
         if self.job.last_operation in ("prune", "forget"):
@@ -682,6 +753,7 @@ class MainWindow(QMainWindow):
         self.tray.set_state(running=False, status_text="Packrat Backup")
         if message == "Stopped by user.":
             self.tray.show_message("Packrat Backup", "Backup stopped. Saved snapshots are safe.")
+            self._start_post_stop_cleanup()
             return
         if not success:
             QMessageBox.warning(self, "Packrat Backup", message)
