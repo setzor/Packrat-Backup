@@ -14,7 +14,7 @@ import re
 import time
 from typing import Any, List, Optional, Tuple
 
-from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
+from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from .tools import restic_path
 
@@ -48,6 +48,10 @@ class ResticRunner(QObject):
         self._speed_time: Optional[float] = None
         self._speed_done: int = 0
         self._speed_bytes_per_sec: float = 0.0
+        self._last_total_bytes: int = 0
+        self._last_bytes_done: int = 0
+        self._tick_timer: Optional[QTimer] = None
+        self._repo_is_cloud: bool = False
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
 
@@ -99,6 +103,7 @@ class ResticRunner(QObject):
         proc.finished.connect(self._on_finished)
         self._process = proc
         self._operation = operation
+        self._repo_is_cloud = repo.startswith("rclone:")
         self._buffer = ""
         self._stderr_text = ""
         self._last_percent: Optional[int] = None
@@ -106,8 +111,18 @@ class ResticRunner(QObject):
         self._speed_time = None
         self._speed_done = 0
         self._speed_bytes_per_sec = 0.0
+        self._last_total_bytes = 0
+        self._last_bytes_done = 0
+        self._start_tick_timer()
         self.last_backup_summary = {}
         proc.start()
+
+    def _start_tick_timer(self) -> None:
+        if self._tick_timer is None:
+            self._tick_timer = QTimer(self)
+            self._tick_timer.setInterval(3000)
+            self._tick_timer.timeout.connect(self._tick_stale_speed)
+        self._tick_timer.start()
 
     def stop(self) -> None:
         """Terminate the running restic operation (and its rclone child)."""
@@ -254,6 +269,8 @@ class ResticRunner(QObject):
             if self._last_percent is not None:
                 percent = max(percent, self._last_percent)
             self._last_percent = percent
+            self._last_total_bytes = int(msg.get("total_bytes") or 0)
+            self._last_bytes_done = int(msg.get("bytes_done") or 0)
             self.progress.emit(percent, _status_text(msg, self._byte_counter_text(msg)))
         elif kind == "summary":
             snapshot_id = msg.get("snapshot_id")
@@ -268,13 +285,14 @@ class ResticRunner(QObject):
             )
 
     def _byte_counter_text(self, msg: dict) -> str:
-        """Human-readable "10 GiB of 200 GiB" plus live speed and ETA.
+        """Human-readable "10 GiB of 200 GiB" processed counter.
 
-        restic status messages carry ``bytes_done`` and ``total_bytes`` (there
-        is no "remaining" field). Once ``bytes_done`` reaches ``total_bytes``
-        all local scanning/saving is complete and restic is only waiting on
-        the backend (e.g. rclone flushing to OneDrive), so we say that
-        instead of showing a bogus "0s left".
+        restic's ``bytes_done`` counts bytes processed *locally* (read,
+        chunked, deduplicated) — not bytes uploaded. On cloud repositories
+        the upload lags far behind and restic never reports its progress,
+        so any speed/ETA derived from ``bytes_done`` would be dishonest
+        (e.g. "7.8 GiB/s, 9s left" flickering for an hour). Cloud repos
+        show only the processed counter; local repos get speed and ETA.
         """
         total = int(msg.get("total_bytes") or 0)
         done = int(msg.get("bytes_done") or 0)
@@ -282,14 +300,24 @@ class ResticRunner(QObject):
             return ""
         if done >= total:
             return "all data processed — finishing cloud upload"
-        parts = [f"{_human_size(done)} of {_human_size(total)}"]
+        counter = f"{_human_size(done)} of {_human_size(total)} processed"
+        if self._repo_is_cloud:
+            return counter
         speed = self._update_speed(done)
         if speed >= 1:
-            parts.append(f"{_human_size(speed)}/s")
-            parts.append(f"{_eta_text((total - done) / speed)} left")
-        return ", ".join(parts)
+            counter += f", {_human_size(speed)}/s, {_eta_text((total - done) / speed)} left"
+        return counter
 
     def _update_speed(self, done: int) -> float:
+        """Sliding-window speed that decays when bytes stop advancing.
+
+        restic's ``bytes_done`` advances at local-processing speed (disk
+        reads, easily multiple GiB/s) while the actual cloud upload lags
+        far behind, and during the final flush restic sends no status
+        messages at all. Decay toward zero when ``bytes_done`` stops
+        moving so a fast moment isn't frozen on screen as "7.8 GiB/s,
+        9s left" for the next hour.
+        """
         now = time.monotonic()
         if self._speed_time is None:
             self._speed_time = now
@@ -309,9 +337,38 @@ class ResticRunner(QObject):
         self._speed_done = done
         return self._speed_bytes_per_sec
 
+    def _tick_stale_speed(self) -> None:
+        """Re-emit progress with decayed speed while restic is silent.
+
+        restic stops sending status messages during the final cloud flush;
+        without this the last computed speed/ETA stays on screen for the
+        whole silent stretch. Called periodically during backups.
+        """
+        if not self.is_running():
+            return
+        if self._operation not in ("backup", "dry-run"):
+            return
+        if self._last_percent is None:
+            return
+        total = self._last_total_bytes
+        done = self._last_bytes_done
+        if total <= 0 or done <= 0 or done >= total:
+            return
+        speed = self._update_speed(done)
+        text = f"{_human_size(done)} of {_human_size(total)} processed"
+        if self._repo_is_cloud:
+            text += " — uploading to the cloud…"
+        elif speed >= 1:
+            text += f", {_human_size(speed)}/s, {_eta_text((total - done) / speed)} left"
+        else:
+            text += " — waiting…"
+        self.progress.emit(self._last_percent, text)
+
     def _on_finished(self, exit_code: int, exit_status) -> None:
         proc = self._process
         self._process = None
+        if self._tick_timer is not None:
+            self._tick_timer.stop()
         stdout = self._buffer
         stderr = self._stderr_text
         if proc is not None:
