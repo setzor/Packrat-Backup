@@ -492,7 +492,7 @@ class MainWindow(QMainWindow):
             self._maybe_start_verification()
             return
         log.info("Auto-prune: cleaning up after successful backup")
-        if self.job.start_prune():
+        if self.job.start_prune_orphans():
             self.schedule_page.set_cleaning(True)
             self.tray.set_state(running=True, status_text="Cleaning up…")
             return
@@ -707,7 +707,11 @@ class MainWindow(QMainWindow):
                 "No backup password is stored; cannot clean up the repository.",
             )
             return
-        if self.job.start_prune():
+        if self.backend.has_snapshots():
+            started = self.job.start_prune()
+        else:
+            started = self.job.start_prune_orphans()
+        if started:
             self.schedule_page.set_cleaning(True)
             self.overview_page.set_backup_enabled(False)
             self.tray.set_state(running=True, status_text="Cleaning up…")

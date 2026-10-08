@@ -255,3 +255,21 @@ def test_delete_interrupted_tmp_files_local(tmp_path):
     assert ok
     assert not glob.glob(str(repo / "data" / "*" / "*-tmp-*"))
     assert (data / "ab12...definitely-a-pack").exists()
+
+
+def test_has_snapshots_unknown_defaults_true():
+    QtCore = pytest.importorskip("PyQt6.QtCore")
+    if not hasattr(QtCore, "QSettings"):
+        pytest.skip("requires full PyQt6 widgets")
+    from packrat.backend import BackupBackend
+
+    class _Settings:
+        backend_cfg = None
+
+    b = BackupBackend.__new__(BackupBackend)
+    b._snapshot_count = None
+    assert b.has_snapshots() is True
+    b._snapshot_count = 0
+    assert b.has_snapshots() is False
+    b._snapshot_count = 3
+    assert b.has_snapshots() is True
