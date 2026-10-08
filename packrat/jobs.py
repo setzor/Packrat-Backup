@@ -84,6 +84,10 @@ class BackupJob(QObject):
     def start_prune(self) -> bool:
         return self._start_retention(self.backend.prune)
 
+    def start_prune_orphans(self) -> bool:
+        """Raw prune to remove unreferenced data from interrupted backups."""
+        return self._start_retention(self.backend.prune_orphans)
+
     def start_forget(self) -> bool:
         """Apply retention without repacking — cheap on cloud repositories (#64)."""
         return self._start_retention(self.backend.forget)

@@ -636,7 +636,7 @@ class MainWindow(QMainWindow):
         )
         if confirm != QMessageBox.StandardButton.Yes:
             return
-        if not self.job.start_prune():
+        if not self.job.start_prune_orphans():
             self.restore_page.set_cleaning_up(False)
             QMessageBox.information(
                 self, "Packrat Backup", "A backup or cleanup is already running."
