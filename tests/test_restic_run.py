@@ -103,8 +103,8 @@ def test_byte_counter_in_progress_text():
             "message_type": "status",
             "percent_done": 0.94,
             "current_activity": "saving",
+            "bytes_done": 10 * 1024**3,
             "total_bytes": 200 * 1024**3,
-            "bytes_remaining": 190 * 1024**3,
         }
     )
 
@@ -136,11 +136,11 @@ def test_speed_and_eta_appear_after_samples():
 
     runner._speed_time = None
     runner._handle_backup_message(
-        {"message_type": "status", "total_bytes": 1000, "bytes_remaining": 900}
+        {"message_type": "status", "bytes_done": 100, "total_bytes": 1000}
     )
     runner._speed_time -= 2
     runner._handle_backup_message(
-        {"message_type": "status", "total_bytes": 1000, "bytes_remaining": 800}
+        {"message_type": "status", "bytes_done": 200, "total_bytes": 1000}
     )
 
     _, text = seen[-1]
@@ -154,3 +154,27 @@ def test_eta_text_formatting():
     assert _eta_text(45) == "45s"
     assert _eta_text(125) == "2m 5s"
     assert _eta_text(3700) == "1h 1m"
+
+
+def test_byte_counter_done_equals_total_shows_finishing():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.progress.connect(lambda pct, msg: seen.append((pct, msg)))
+
+    runner._handle_backup_message(
+        {
+            "message_type": "status",
+            "percent_done": 0.77,
+            "current_activity": "saving",
+            "bytes_done": 120.6 * 1024**3,
+            "total_bytes": 120.6 * 1024**3,
+        }
+    )
+
+    pct, text = seen[-1]
+    assert pct == 77
+    assert "all data processed" in text
+    assert "0s" not in text
+    assert "of" not in text

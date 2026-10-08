@@ -255,16 +255,18 @@ class ResticRunner(QObject):
     def _byte_counter_text(self, msg: dict) -> str:
         """Human-readable "10 GiB of 200 GiB" plus live speed and ETA.
 
-        restic's ``percent_done`` is bytes-based and can sit at high values
-        for hours while thousands of tiny files crawl through rclone; the
-        byte counter proves the upload is still moving and shows what's
-        left. Returns an empty string when restic hasn't reported totals.
+        restic status messages carry ``bytes_done`` and ``total_bytes`` (there
+        is no "remaining" field). Once ``bytes_done`` reaches ``total_bytes``
+        all local scanning/saving is complete and restic is only waiting on
+        the backend (e.g. rclone flushing to OneDrive), so we say that
+        instead of showing a bogus "0s left".
         """
         total = int(msg.get("total_bytes") or 0)
-        remaining = int(msg.get("bytes_remaining") or 0)
-        if total <= 0:
+        done = int(msg.get("bytes_done") or 0)
+        if total <= 0 or done <= 0:
             return ""
-        done = max(total - remaining, 0)
+        if done >= total:
+            return "all data processed — finishing cloud upload"
         parts = [f"{_human_size(done)} of {_human_size(total)}"]
         speed = self._update_speed(done)
         if speed >= 1:
