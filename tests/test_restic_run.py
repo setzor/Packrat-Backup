@@ -217,3 +217,12 @@ def test_stderr_progress_lines_are_ansi_cleaned():
     assert pct == -1
     assert "\x1b" not in text
     assert "Transferred" in text
+
+
+def test_result_message_detects_stale_lock():
+    from packrat.restic import _result_message
+
+    stderr = "repository is already locked, lock file ... created at ...\nthe `unlock` command can be used to remove stale locks\n"
+    msg = _result_message("prune", False, 11, stderr)
+    assert "exit 11" in msg
+    assert "unlock" in msg

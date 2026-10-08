@@ -9,12 +9,12 @@ from __future__ import annotations
 import datetime as _dt
 import os
 from subprocess import SubprocessError
-from typing import Optional
+from typing import Optional, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
 from .rclone import RcloneRunner
-from .restic import Restic, ResticRunner, keep_args_from_settings
+from .restic import Restic, ResticRunner, _clean_stderr, keep_args_from_settings
 from .settings import Backend, Settings
 
 
@@ -98,6 +98,22 @@ class BackupBackend(QObject):
 
     def init_repository(self) -> None:
         self.prepare()
+
+    def remove_stale_lock(self) -> Tuple[bool, str]:
+        """Run `restic unlock` synchronously to remove stale locks.
+
+        Stale locks are left behind when a backup is killed mid-run; every
+        later restic operation then fails with exit 11. Returns (ok, detail).
+        """
+        repo = self.repo_location()
+        ok, _, stderr = Restic.run(
+            ["--repo", repo, "unlock", "--remove-all"],
+            timeout=120,
+            password=self._password,
+            options=self.cloud_options(),
+        )
+        detail = _clean_stderr(stderr)
+        return ok, detail
         self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
 
     def run_backup(self) -> None:

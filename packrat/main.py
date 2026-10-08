@@ -719,8 +719,28 @@ class MainWindow(QMainWindow):
         self._maybe_start_verification()
         if success:
             self.tray.show_message("Packrat Backup", "Cleanup finished successfully.")
-        else:
-            QMessageBox.warning(self, "Packrat Backup", f"Cleanup failed: {message}")
+            return
+        if "unlock" in message.lower() or "unable to create lock" in message.lower():
+            answer = QMessageBox.question(
+                self,
+                "Packrat Backup",
+                f"Cleanup failed because the repository is locked by an interrupted run:\n{message}\n\nRemove the stale lock and retry the cleanup?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+            ok, detail = self.backend.remove_stale_lock()
+            if not ok:
+                QMessageBox.warning(self, "Packrat Backup", f"Unlock failed: {detail}")
+                return
+            log.info("Stale lock removed; retrying cleanup")
+            if self.job.last_operation == "prune":
+                self.start_cleanup()
+            else:
+                self._cleanup_incomplete()
+            return
+        QMessageBox.warning(self, "Packrat Backup", f"Cleanup failed: {message}")
 
     def _refresh_history(self) -> None:
         self.history_page.refresh()
