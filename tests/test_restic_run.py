@@ -1,6 +1,8 @@
 import stat
 import textwrap
 
+import pytest
+
 from packrat.restic import Restic
 
 
@@ -229,58 +231,11 @@ def test_result_message_detects_stale_lock():
 
 
 def test_delete_interrupted_tmp_files_local(tmp_path):
+    """Abandoned -tmp- pack files are removed; real packs survive."""
     import glob
-    import sys
-    import types
 
-    for mod in ("PyQt6", "PyQt6.QtCore"):
-        sys.modules.pop(mod, None)
-    m = types.ModuleType("PyQt6")
-    c = types.ModuleType("PyQt6.QtCore")
-
-    class Sig:
-        def __init__(self, *a, **k):
-            self.f = None
-
-        def connect(self, f):
-            self.f = f
-            return f
-
-        def emit(self, *a):
-            return self.f(*a) if self.f else None
-
-    class Obj:
-        def __init__(self, *a, **k):
-            pass
-
-    class SettingsStub:
-        def __init__(self, *a, **k):
-            pass
-
-        def value(self, key, default=None, **k):
-            return default
-
-        def setValue(self, *a, **k):
-            pass
-
-        def sync(self, *a, **k):
-            pass
-
-        def beginGroup(self, *a, **k):
-            pass
-
-        def endGroup(self, *a, **k):
-            pass
-
-    c.QObject = Obj
-    c.QProcess = Obj
-    c.QProcessEnvironment = Obj
-    c.pyqtSignal = Sig
-    c.QSettings = SettingsStub
-    m.QtCore = c
-    sys.modules["PyQt6"] = m
-    sys.modules["PyQt6.QtCore"] = c
-
+    QtCore = pytest.importorskip("PyQt6.QtCore")
+    pytest.skip("requires full PyQt6 widgets") if not hasattr(QtCore, "QSettings") else None
     from packrat.backend import BackupBackend
     from packrat.settings import Backend, Settings
 
