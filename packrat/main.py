@@ -181,7 +181,19 @@ class MainWindow(QMainWindow):
                 last_dt = None
         if not self.scheduler.missed_backup(last_dt):
             return
-        log.info("Scheduled backup was missed while Packrat was not running; catching up")
+        log.info("Scheduled backup was missed while Packrat was not running")
+        last_text = last_dt.strftime("%Y-%m-%d %H:%M") if last_dt else "never"
+        answer = QMessageBox.question(
+            self,
+            "Packrat Backup",
+            f"A scheduled backup was missed (last backup: {last_text}).\n\n"
+            "Start it now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            log.info("User declined catch-up backup")
+            return
         self.start_backup()
 
     def _apply_password_from_store(self) -> None:
