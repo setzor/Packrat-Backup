@@ -48,6 +48,7 @@ from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
 from .tray import TrayController
+from .widgets import SkippedFilesDialog
 
 log = logging.getLogger(__name__)
 
@@ -383,6 +384,11 @@ class MainWindow(QMainWindow):
         self.overview_page.set_checking(False)
         self.overview_page.clear_progress()
         log_run("check", success, message, _dt.datetime.now().isoformat(timespec="seconds"))
+        self.settings.last_verified_time = _dt.datetime.now().isoformat(timespec="seconds")
+        self.settings.last_verified_ok = success
+        self.settings.last_verified_snapshot_id = self.backend.last_snapshot_id
+        self.settings.save()
+        self._refresh_overview()
         self.history_page.refresh()
         if success:
             self.tray.show_message("Packrat Backup", "Repository verification succeeded.")
@@ -471,6 +477,55 @@ class MainWindow(QMainWindow):
         self.restore_page.set_snapshots(snapshots)
         self._snapshots_loaded_at = _dt.datetime.now()
         self._snapshots_loaded_after_backup = self.settings.last_backup_time
+        self._adopt_newest_snapshot_time(snapshots)
+
+    @staticmethod
+    def _trim_iso_nanos(raw: str) -> str:
+        """Normalise a restic timestamp for datetime.fromisoformat.
+
+        restic emits nanosecond precision ("...42.533518173Z"); Python
+        3.10 rejects anything beyond microseconds, so trim to 6 digits
+        and make the trailing Z explicit.
+        """
+        import re
+
+        match = re.match(r"^(.*?\.\d{6})\d*(Z|[+-]\d{2}:?\d{2})?$", raw)
+        if match:
+            raw = match.group(1) + (match.group(2) or "")
+        return raw.replace("Z", "+00:00")
+
+    def _adopt_newest_snapshot_time(self, snapshots) -> None:
+        """Reconcile last_backup_time with the newest snapshot.
+
+        A backup can save a snapshot even when Packrat records it as a
+        failure (e.g. pre-fix exit-3 runs); the Overview badge would then
+        claim "overdue" while the repository provably has a fresh
+        snapshot. When the newest snapshot is newer than the recorded
+        last backup, adopt it.
+        """
+        newest = None
+        for snap in snapshots:
+            raw = str((snap or {}).get("time") or "")
+            try:
+                when = _dt.datetime.fromisoformat(self._trim_iso_nanos(raw))
+            except ValueError:
+                continue
+            if when.tzinfo is not None:
+                when = when.astimezone().replace(tzinfo=None)
+            if newest is None or when > newest:
+                newest = when
+        if newest is None:
+            return
+        recorded = None
+        if self.settings.last_backup_time:
+            try:
+                recorded = _dt.datetime.fromisoformat(self.settings.last_backup_time)
+            except ValueError:
+                recorded = None
+        if recorded is None or newest > recorded:
+            self.settings.last_backup_time = newest.isoformat(timespec="seconds")
+            self.settings.save()
+            self._refresh_overview()
 
     def _maybe_auto_cleanup(self, operation: str, success: bool, _message: str) -> None:
         """Apply retention after a backup: forget every run, prune on a schedule (#64)."""
@@ -754,6 +809,21 @@ class MainWindow(QMainWindow):
         if message == "Stopped by user.":
             self.tray.show_message("Packrat Backup", "Backup stopped. Saved snapshots are safe.")
             self._start_post_stop_cleanup()
+            return
+        skipped = self.backend.restic.unreadable_files
+        if "could not be read" in message and skipped:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning if not success else QMessageBox.Icon.Information)
+            box.setWindowTitle("Packrat Backup")
+            box.setText(message)
+            box.setInformativeText(
+                f"{len(skipped)} file{'s' if len(skipped) != 1 else ''} could not be read."
+            )
+            details_button = box.addButton("Details…", QMessageBox.ButtonRole.ActionRole)
+            box.addButton(QMessageBox.StandardButton.Close)
+            box.exec()
+            if box.clickedButton() is details_button:
+                SkippedFilesDialog(skipped, self).exec()
             return
         if not success:
             QMessageBox.warning(self, "Packrat Backup", message)

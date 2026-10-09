@@ -369,3 +369,132 @@ def test_speed_decays_when_bytes_stop_advancing():
     assert "190.0 GiB of 200.0 GiB" in text
     if decayed < 1:
         assert "waiting for the cloud upload" in text
+
+
+def test_backup_exit3_with_snapshot_is_partial_success():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+
+    runner._operation = "backup"
+    runner._stopping = False
+    runner.last_snapshot_id = "abc123"
+    runner.last_backup_summary = {"total_files_processed": 1234, "data_added": 5 * 1024**3}
+    stderr = (
+        '{"message_type":"error","error":{"message":"/home/x/y: permission denied"},'
+        '"during":"archival","item":"/home/x/y"}\n'
+        '{"message_type":"exit_error","code":3,'
+        '"message":"Warning: at least one source file could not be read"}\n'
+    )
+    runner._stderr_text = stderr
+    runner._process = None
+    runner._on_finished(3, 0)
+
+    ok, msg = seen[-1]
+    assert ok is True
+    assert "snapshot of 1234 files" in msg
+    assert "could not be read" in msg
+
+
+def test_unreadable_files_collected_from_error_messages():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.config/google-chrome/SingletonLock",
+            "error": {"message": "open: permission denied"},
+        }
+    )
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.cache/big/dir/with/very/long/path/somefile.db",
+            "error": {"message": "no such file or directory"},
+        }
+    )
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.config/google-chrome/SingletonLock",
+            "error": {"message": "open: permission denied"},
+        }
+    )
+
+    assert runner.unreadable_files == [
+        "/home/user/.config/google-chrome/SingletonLock: open: permission denied",
+        "/home/user/.cache/big/dir/with/very/long/path/somefile.db: no such file or directory",
+    ]
+
+
+def test_adopt_newest_snapshot_time_reconciles_overdue_badge():
+    QtCore = pytest.importorskip("PyQt6.QtCore")
+    if not hasattr(QtCore, "QSettings"):
+        pytest.skip("requires full PyQt6 widgets")
+
+    from packrat.main import MainWindow
+
+    win = MainWindow.__new__(MainWindow)
+
+    class _Settings:
+        last_backup_time = "2026-10-01T08:00:00"
+        save_calls = 0
+
+        def save(self):
+            self.save_calls += 1
+
+    class _Overview:
+        refreshed = 0
+
+        def set_state(self, *a, **k):
+            pass
+
+    win.settings = _Settings()
+    win.overview_page = _Overview()
+    win._refresh_overview = lambda: None
+
+    snapshots = [{"time": "2026-10-09T04:06:42.533518173Z"}]
+    win._adopt_newest_snapshot_time(snapshots)
+    assert win.settings.last_backup_time.startswith("2026-10-09")
+    assert win.settings.save_calls == 1
+
+    older = [{"time": "2026-09-01T00:00:00Z"}]
+    before = win.settings.last_backup_time
+    win._adopt_newest_snapshot_time(older)
+    assert win.settings.last_backup_time == before
+
+
+def test_dry_run_exit3_with_summary_is_partial_success():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    finished = []
+    runner.finished.connect(lambda ok, msg: finished.append((ok, msg)))
+    dry_runs = []
+    runner.dry_run_ready.connect(lambda s: dry_runs.append(s))
+
+    runner._operation = "dry-run"
+    runner._stopping = False
+    runner._process = None
+    runner._buffer = (
+        '{"message_type":"status","percent_done":0.5,"total_bytes":100,"bytes_done":50}\n'
+        '{"message_type":"summary","files_new":12,"files_changed":0,'
+        '"total_files_processed":120,"total_bytes_processed":5000,'
+        '"data_added":3000,"snapshot_id":"x","dry_run":true}\n'
+    )
+    runner._stderr_text = (
+        '{"message_type":"error","error":{"message":"/tmp/f: permission denied"},'
+        '"during":"archival","item":"/tmp/f"}\n'
+        '{"message_type":"exit_error","code":3,'
+        '"message":"Warning: at least one source file could not be read"}\n'
+    )
+    runner._on_finished(3, 0)
+
+    ok, msg = finished[-1]
+    assert ok is True
+    assert "Preview ready" in msg
+    assert "could not be read" in msg
+    assert dry_runs and dry_runs[0]["total_files_processed"] == 120

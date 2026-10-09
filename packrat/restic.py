@@ -9,6 +9,7 @@ environment variable of the child process, never via argv or a temp file.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import time
@@ -17,6 +18,8 @@ from typing import Any, List, Optional, Tuple
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
 from .tools import restic_path
+
+log = logging.getLogger(__name__)
 
 
 class ResticProcessError(RuntimeError):
@@ -54,6 +57,7 @@ class ResticRunner(QObject):
         self._repo_is_cloud: bool = False
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
+        self.unreadable_files: List[str] = []
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -115,6 +119,7 @@ class ResticRunner(QObject):
         self._last_bytes_done = 0
         self._start_tick_timer()
         self.last_backup_summary = {}
+        self.unreadable_files = []
         proc.start()
 
     def _start_tick_timer(self) -> None:
@@ -272,6 +277,17 @@ class ResticRunner(QObject):
             self._last_total_bytes = int(msg.get("total_bytes") or 0)
             self._last_bytes_done = int(msg.get("bytes_done") or 0)
             self.progress.emit(percent, _status_text(msg, self._byte_counter_text(msg)))
+        elif kind == "error":
+            item = str(msg.get("item") or "")
+            reason = ""
+            error = msg.get("error")
+            if isinstance(error, dict):
+                reason = str(error.get("message") or "")
+            if not reason:
+                reason = str(error or "")
+            line = f"{item}: {reason}" if item else reason
+            if line and line not in self.unreadable_files:
+                self.unreadable_files.append(line)
         elif kind == "summary":
             snapshot_id = msg.get("snapshot_id")
             if snapshot_id:
@@ -379,7 +395,7 @@ class ResticRunner(QObject):
             self.snapshots_listed.emit(_parse_snapshots(stdout))
         elif self._operation == "ls" and success:
             self.files_listed.emit(_parse_ls_nodes(stdout))
-        elif self._operation == "dry-run" and success:
+        elif self._operation == "dry-run":
             self.dry_run_ready.emit(_parse_dry_run_summary(stdout))
         elif self._operation == "prune" and success:
             self.prune_stats_ready.emit(
@@ -392,6 +408,31 @@ class ResticRunner(QObject):
             self._stderr_text = ""
             self.finished.emit(False, message)
             return
+        if self._operation == "backup" and not success and self.last_snapshot_id:
+            warning = _extract_exit_warning(stderr)
+            if warning:
+                files = self.last_backup_summary.get("total_files_processed", 0)
+                size = self.last_backup_summary.get("data_added", 0)
+                message = (
+                    f"Backup saved a snapshot of {files} files "
+                    f"({_human_size(size)} new data), but {warning}"
+                )
+                log.warning("Backup finished with warnings: %s", warning)
+                self._buffer = ""
+                self._stderr_text = ""
+                self.finished.emit(True, message)
+                return
+        if self._operation == "dry-run" and not success:
+            summary = _parse_dry_run_summary(stdout)
+            warning = _extract_exit_warning(stderr)
+            if summary and warning:
+                self._buffer = ""
+                self._stderr_text = ""
+                self.finished.emit(
+                    True,
+                    f"Preview ready, but {warning}",
+                )
+                return
         message = _result_message(self._operation, success, exit_code, stderr)
         self._buffer = ""
         self._stderr_text = ""
@@ -558,6 +599,26 @@ def _parse_ls_nodes(stdout: str) -> List[dict]:
         node["name"] = path.lstrip("/")
         nodes.append(node)
     return nodes
+
+
+def _extract_exit_warning(stderr: str) -> str:
+    """Pull the human-readable reason out of restic's exit_error JSON.
+
+    restic backup exits 3 ("at least one source file could not be read")
+    *after saving the snapshot* of everything it did read; the JSON
+    message explains what was skipped so it can be surfaced honestly.
+    """
+    for line in stderr.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            parsed = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict) and parsed.get("message_type") == "exit_error":
+            return str(parsed.get("message") or "").strip()
+    return ""
 
 
 def _result_message(operation: str, success: bool, exit_code: int, stderr: str) -> str:
