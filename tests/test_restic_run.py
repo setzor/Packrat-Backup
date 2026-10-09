@@ -513,3 +513,15 @@ def test_activity_log_trimmed_to_max_entries(tmp_path, monkeypatch):
 
     first = json.loads(lines[0])
     assert first["message"] == "run 50"
+
+
+def test_count_ls_nodes_counts_streaming_chunks():
+    from packrat.restic import _count_ls_nodes
+
+    chunk = (
+        '{"struct_type":"node","name":"a","type":"dir","path":"/a"}\n'
+        '{"struct_type":"node","name":"b","type":"file","path":"/a/b"}\n'
+        '{"struct_type":"snapshot","id":"x"}\n'
+    )
+    assert _count_ls_nodes(chunk) == 2
+    assert _count_ls_nodes("") == 0

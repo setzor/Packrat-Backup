@@ -100,6 +100,10 @@ class SnapshotBrowserDialog(QDialog):
         self._loading_label.setVisible(loading)
         self._loading_bar.setVisible(loading)
 
+    def set_loading_text(self, text: str) -> None:
+        """Update the loading label while contents stream in."""
+        self._loading_label.setText(text)
+
     def set_error(self, message: str) -> None:
         self.set_loading(False)
         self._error_label.setText(message)
