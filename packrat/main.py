@@ -771,6 +771,9 @@ class MainWindow(QMainWindow):
         if self.backend.restic._operation == "check":
             self.overview_page.set_progress(percent, message)
             return
+        if self.backend.restic._operation == "dry-run":
+            self.overview_page.set_progress(percent, f"Previewing backup — {message}")
+            return
         self.overview_page.set_progress(percent, message)
         if percent >= 0:
             self.tray.set_state(running=True, status_text=f"Backup {percent}%")

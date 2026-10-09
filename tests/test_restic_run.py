@@ -498,3 +498,18 @@ def test_dry_run_exit3_with_summary_is_partial_success():
     assert "Preview ready" in msg
     assert "could not be read" in msg
     assert dry_runs and dry_runs[0]["total_files_processed"] == 120
+
+
+def test_activity_log_trimmed_to_max_entries(tmp_path, monkeypatch):
+    from packrat import activity
+
+    monkeypatch.setattr(activity, "log_path", lambda: tmp_path / "activity.jsonl")
+    for i in range(activity.MAX_ENTRIES + 50):
+        activity.log_run("backup", True, f"run {i}", "2026-10-09T00:00:00")
+
+    lines = [ln for ln in (tmp_path / "activity.jsonl").read_text().splitlines() if ln.strip()]
+    assert len(lines) == activity.MAX_ENTRIES
+    import json
+
+    first = json.loads(lines[0])
+    assert first["message"] == "run 50"

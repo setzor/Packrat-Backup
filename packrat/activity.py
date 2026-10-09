@@ -18,6 +18,29 @@ def log_path() -> Path:
     return config_dir() / "activity.jsonl"
 
 
+def _trim_log() -> None:
+    """Keep the activity log bounded.
+
+    The log is append-only JSON lines; without trimming it grows
+    forever. Keep the newest MAX_ENTRIES records (compact rewrite,
+    best effort — a failed trim never blocks logging).
+    """
+    path = log_path()
+    if not path.is_file():
+        return
+    try:
+        lines = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    except OSError:
+        return
+    if len(lines) <= MAX_ENTRIES:
+        return
+    kept = lines[-MAX_ENTRIES:]
+    try:
+        path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+    except OSError as exc:
+        log.warning("Could not trim activity log: %s", exc)
+
+
 def log_run(
     operation: str,
     success: bool,
@@ -40,6 +63,7 @@ def log_run(
         }
         with path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(entry) + "\n")
+        _trim_log()
     except OSError as exc:
         log.warning("Could not write activity log: %s", exc)
 
