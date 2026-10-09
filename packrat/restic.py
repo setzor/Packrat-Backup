@@ -436,7 +436,7 @@ class ResticRunner(QObject):
                 self._stderr_text = ""
                 self.finished.emit(
                     True,
-                    f"Preview ready, but {warning}",
+                    f"Estimate ready, but {warning}",
                 )
                 return
         message = _result_message(self._operation, success, exit_code, stderr)

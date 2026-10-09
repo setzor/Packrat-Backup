@@ -495,7 +495,7 @@ def test_dry_run_exit3_with_summary_is_partial_success():
 
     ok, msg = finished[-1]
     assert ok is True
-    assert "Preview ready" in msg
+    assert "Estimate ready" in msg
     assert "could not be read" in msg
     assert dry_runs and dry_runs[0]["total_files_processed"] == 120
 
