@@ -72,10 +72,10 @@ def test_overview_preview_result_messages(qapp):
 
 def test_overview_preview_button_states(qapp):
     page = OverviewPage()
-    assert page._preview_button.text() == "Preview Backup"
+    assert page._preview_button.text() == "Estimate Next Backup"
     assert page._preview_button.isEnabled()
     page.set_previewing(True)
-    assert page._preview_button.text() == "Previewing…"
+    assert page._preview_button.text() == "Estimating…"
     assert not page._preview_button.isEnabled()
     page.set_previewing(False)
     assert page._preview_button.isEnabled()

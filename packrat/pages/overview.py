@@ -140,7 +140,7 @@ class OverviewPage(QWidget):
         actions.addWidget(self._backup_button)
         actions.addWidget(self._restore_button)
         actions.addWidget(self._verify_button)
-        self._preview_button = QPushButton("Preview Backup")
+        self._preview_button = QPushButton("Estimate Next Backup")
         self._preview_button.setMinimumHeight(44)
         self._preview_button.setToolTip(
             "Estimate how many files the next backup would upload and how big it would be."
@@ -247,7 +247,7 @@ class OverviewPage(QWidget):
         self._verify_button.setEnabled(not checking)
 
     def set_previewing(self, previewing: bool) -> None:
-        self._preview_button.setText("Previewing…" if previewing else "Preview Backup")
+        self._preview_button.setText("Estimating…" if previewing else "Estimate Next Backup")
         self._preview_button.setEnabled(not previewing)
 
     def set_preview_result(self, summary: dict) -> None:

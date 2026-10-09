@@ -495,7 +495,7 @@ def test_dry_run_exit3_with_summary_is_partial_success():
 
     ok, msg = finished[-1]
     assert ok is True
-    assert "Preview ready" in msg
+    assert "Estimate ready" in msg
     assert "could not be read" in msg
     assert dry_runs and dry_runs[0]["total_files_processed"] == 120
 
@@ -646,3 +646,12 @@ def test_rclone_timeout_option_always_present():
     assert any("serve restic" in a for a in opts)
 
     assert _extended_options("/local/repo", {"connections": 8}) == []
+
+
+def test_check_failure_message_not_nonsensical():
+    from packrat.restic import _result_message
+
+    msg = _result_message("check", False, 11, "repository is already locked")
+    assert msg == "Integrity check failed (exit 11): repository is already locked"
+    ok = _result_message("check", True, 0, "")
+    assert ok == "Integrity check passed"

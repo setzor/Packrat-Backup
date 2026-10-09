@@ -436,7 +436,7 @@ class ResticRunner(QObject):
                 self._stderr_text = ""
                 self.finished.emit(
                     True,
-                    f"Preview ready, but {warning}",
+                    f"Estimate ready, but {warning}",
                 )
                 return
         message = _result_message(self._operation, success, exit_code, stderr)
@@ -647,10 +647,11 @@ def _result_message(operation: str, success: bool, exit_code: int, stderr: str) 
         "ls": "Snapshot contents listed",
         "restore": "Restore complete",
         "prune": "Cleanup complete",
-        "check": "Integrity check passed",
+        "check": "Integrity check",
     }
     if success:
-        return generic.get(operation, "Operation complete")
+        success_labels = {"check": "Integrity check passed"}
+        return success_labels.get(operation, generic.get(operation, "Operation complete"))
     detail = _clean_stderr(stderr)
     base = f"{generic.get(operation, 'Operation')} failed (exit {exit_code})"
     return f"{base}: {detail}" if detail else base
