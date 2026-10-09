@@ -472,6 +472,40 @@ class MainWindow(QMainWindow):
         self.restore_page.set_snapshots(snapshots)
         self._snapshots_loaded_at = _dt.datetime.now()
         self._snapshots_loaded_after_backup = self.settings.last_backup_time
+        self._adopt_newest_snapshot_time(snapshots)
+
+    def _adopt_newest_snapshot_time(self, snapshots) -> None:
+        """Reconcile last_backup_time with the newest snapshot.
+
+        A backup can save a snapshot even when Packrat records it as a
+        failure (e.g. pre-fix exit-3 runs); the Overview badge would then
+        claim "overdue" while the repository provably has a fresh
+        snapshot. When the newest snapshot is newer than the recorded
+        last backup, adopt it.
+        """
+        newest = None
+        for snap in snapshots:
+            raw = str((snap or {}).get("time") or "")
+            try:
+                when = _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if when.tzinfo is not None:
+                when = when.astimezone().replace(tzinfo=None)
+            if newest is None or when > newest:
+                newest = when
+        if newest is None:
+            return
+        recorded = None
+        if self.settings.last_backup_time:
+            try:
+                recorded = _dt.datetime.fromisoformat(self.settings.last_backup_time)
+            except ValueError:
+                recorded = None
+        if recorded is None or newest > recorded:
+            self.settings.last_backup_time = newest.isoformat(timespec="seconds")
+            self.settings.save()
+            self._refresh_overview()
 
     def _maybe_auto_cleanup(self, operation: str, success: bool, _message: str) -> None:
         """Apply retention after a backup: forget every run, prune on a schedule (#64)."""

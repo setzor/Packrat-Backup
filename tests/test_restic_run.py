@@ -428,3 +428,40 @@ def test_unreadable_files_collected_from_error_messages():
         "/home/user/.config/google-chrome/SingletonLock: open: permission denied",
         "/home/user/.cache/big/dir/with/very/long/path/somefile.db: no such file or directory",
     ]
+
+
+def test_adopt_newest_snapshot_time_reconciles_overdue_badge():
+    QtCore = pytest.importorskip("PyQt6.QtCore")
+    if not hasattr(QtCore, "QSettings"):
+        pytest.skip("requires full PyQt6 widgets")
+
+    from packrat.main import MainWindow
+
+    win = MainWindow.__new__(MainWindow)
+
+    class _Settings:
+        last_backup_time = "2026-10-01T08:00:00"
+        save_calls = 0
+
+        def save(self):
+            self.save_calls += 1
+
+    class _Overview:
+        refreshed = 0
+
+        def set_state(self, *a, **k):
+            pass
+
+    win.settings = _Settings()
+    win.overview_page = _Overview()
+    win._refresh_overview = lambda: None
+
+    snapshots = [{"time": "2026-10-09T04:06:42.533518173Z"}]
+    win._adopt_newest_snapshot_time(snapshots)
+    assert win.settings.last_backup_time.startswith("2026-10-09")
+    assert win.settings.save_calls == 1
+
+    older = [{"time": "2026-09-01T00:00:00Z"}]
+    before = win.settings.last_backup_time
+    win._adopt_newest_snapshot_time(older)
+    assert win.settings.last_backup_time == before
