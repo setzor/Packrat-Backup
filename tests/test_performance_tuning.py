@@ -30,8 +30,9 @@ def test_extended_options_empty_for_local_repo():
 def test_extended_options_pass_rclone_tuning():
     opts = {"connections": 8, "transfers": 8, "pack_size": 64}
     args = _extended_options("rclone:myremote:packrat-backups", opts)
-    assert args[:2] == ["-o", "rclone.connections=8"]
-    rclone_args = args[3]
+    assert "rclone.timeout=5m" in args
+    assert "rclone.connections=8" in args
+    rclone_args = next(a for a in args if a.startswith("rclone.args="))
     assert rclone_args.startswith("rclone.args=serve restic --stdio")
     assert "--transfers=8" in rclone_args
     assert "--checkers=16" in rclone_args
@@ -55,7 +56,9 @@ def test_rclone_serve_args_accepted_by_rclone(tmp_path):
     conf = tmp_path / "rclone.conf"
     conf.write_text("[test]\ntype = local\n")
     opts = {"connections": 8, "transfers": 8, "pack_size": 64}
-    rclone_args = _extended_options("rclone:test:repo", opts)[3]
+    rclone_args = next(
+        a for a in _extended_options("rclone:test:repo", opts) if a.startswith("rclone.args=")
+    )
     assert rclone_args.startswith("rclone.args=")
     serve = rclone_args.split("=", 1)[1].split()
     completed = subprocess.run(
@@ -124,7 +127,10 @@ def test_restic_run_injects_options_for_rclone_repo(tmp_path, monkeypatch):
         options={"connections": 8, "transfers": 8, "pack_size": 64},
     )
     assert ok is True
-    assert "--repo rclone:myremote:packrat-backups -o rclone.connections=8" in stdout
+    assert (
+        "--repo rclone:myremote:packrat-backups -o rclone.timeout=5m -o rclone.connections=8"
+        in stdout
+    )
     assert "PACK_SIZE: 64" in stdout
 
 

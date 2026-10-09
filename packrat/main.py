@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import os
+import threading
 from typing import Optional
 
 from PyQt6.QtCore import QTimer
@@ -548,7 +549,7 @@ class MainWindow(QMainWindow):
             self._maybe_start_verification()
             return
         log.info("Auto-prune: cleaning up after successful backup")
-        if self.job.start_prune_orphans():
+        if self.job.start_prune():
             self.schedule_page.set_cleaning(True)
             self.tray.set_state(running=True, status_text="Cleaning up…")
             return
@@ -787,20 +788,31 @@ class MainWindow(QMainWindow):
 
         Runs only when a backup was stopped by the user; a normally finished
         backup references everything it uploaded, so there is nothing to do.
+        The unlock is a blocking restic call (rclone round-trips on cloud
+        repos) so it runs off the UI thread; the prune starts once the
+        unlock is done, delivered back on the UI thread.
         """
         if not self._cleanup_after_stop:
             return
         self._cleanup_after_stop = False
         if not self.backend.is_configured() or not self.backend.has_password():
             return
-        ok, detail = self.backend.remove_stale_lock()
-        if not ok:
-            log.warning("Post-stop unlock failed: %s", detail)
-            return
-        if self.job.start_prune_orphans():
-            log.info("Cleaning up data left by the stopped backup")
-            self.overview_page.set_progress(-1, "Cleaning up after stop…")
-            self.tray.set_state(running=True, status_text="Cleaning up…")
+
+        def worker() -> None:
+            ok, detail = self.backend.remove_stale_lock()
+
+            def deliver() -> None:
+                if not ok:
+                    log.warning("Post-stop unlock failed: %s", detail)
+                    return
+                if self.job.start_prune_orphans():
+                    log.info("Cleaning up data left by the stopped backup")
+                    self.overview_page.set_progress(-1, "Cleaning up after stop…")
+                    self.tray.set_state(running=True, status_text="Cleaning up…")
+
+            QTimer.singleShot(0, deliver)
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _on_job_finished(self, success: bool, message: str) -> None:
         self.overview_page.set_backup_running(False)
