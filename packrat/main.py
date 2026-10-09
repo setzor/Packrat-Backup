@@ -479,6 +479,21 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_after_backup = self.settings.last_backup_time
         self._adopt_newest_snapshot_time(snapshots)
 
+
+def _trim_iso_nanos(raw: str) -> str:
+    """Normalise a restic timestamp for datetime.fromisoformat.
+
+    restic emits nanosecond precision ("...42.533518173Z"); Python 3.10
+    rejects anything beyond microseconds, so trim to 6 digits and make
+    the trailing Z explicit.
+    """
+    import re
+
+    match = re.match(r"^(.*?\.\d{6})\d*(Z|[+-]\d{2}:?\d{2})?$", raw)
+    if match:
+        raw = match.group(1) + (match.group(2) or "")
+    return raw.replace("Z", "+00:00")
+
     def _adopt_newest_snapshot_time(self, snapshots) -> None:
         """Reconcile last_backup_time with the newest snapshot.
 
@@ -492,7 +507,7 @@ class MainWindow(QMainWindow):
         for snap in snapshots:
             raw = str((snap or {}).get("time") or "")
             try:
-                when = _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                when = _dt.datetime.fromisoformat(_trim_iso_nanos(raw))
             except ValueError:
                 continue
             if when.tzinfo is not None:
