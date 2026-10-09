@@ -632,3 +632,17 @@ def test_launch_resets_last_snapshot_id(tmp_path, monkeypatch):
         restic_mod.QProcess = orig
         restic_mod.QProcessEnvironment = orig_env
     assert runner.last_snapshot_id == ""
+
+
+def test_rclone_timeout_option_always_present():
+    from packrat.restic import _extended_options
+
+    opts = _extended_options("rclone:onedrive:backups", {"connections": 8})
+    assert "rclone.timeout=5m" in opts
+    assert "rclone.connections=8" in opts
+
+    opts = _extended_options("rclone:onedrive:backups", {"connections": 16, "transfers": 16})
+    assert "rclone.timeout=5m" in opts
+    assert any("serve restic" in a for a in opts)
+
+    assert _extended_options("/local/repo", {"connections": 8}) == []
