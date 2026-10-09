@@ -58,6 +58,7 @@ class ResticRunner(QObject):
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
         self.unreadable_files: List[str] = []
+        self._ls_nodes_seen: int = 0
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -117,6 +118,7 @@ class ResticRunner(QObject):
         self._speed_bytes_per_sec = 0.0
         self._last_total_bytes = 0
         self._last_bytes_done = 0
+        self._ls_nodes_seen = 0
         self._start_tick_timer()
         self.last_backup_summary = {}
         self.unreadable_files = []
@@ -249,6 +251,9 @@ class ResticRunner(QObject):
         if self._operation in ("backup", "dry-run"):
             for line in _json_lines(self._buffer):
                 self._handle_backup_message(line)
+        elif self._operation == "ls":
+            self._ls_nodes_seen += _count_ls_nodes(data)
+            self.progress.emit(-1, f"Reading snapshot contents — {self._ls_nodes_seen:,} items…")
 
     def _on_stderr(self, proc: QProcess) -> None:
         data = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
@@ -599,6 +604,16 @@ def _parse_ls_nodes(stdout: str) -> List[dict]:
         node["name"] = path.lstrip("/")
         nodes.append(node)
     return nodes
+
+
+def _count_ls_nodes(data: str) -> int:
+    """Count ``restic ls --json`` node lines in a stdout chunk."""
+    count = 0
+    for line in data.splitlines():
+        line = line.strip()
+        if line.startswith('{"struct_type":"node"'):
+            count += 1
+    return count
 
 
 def _extract_exit_warning(stderr: str) -> str:
