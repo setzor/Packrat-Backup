@@ -369,3 +369,30 @@ def test_speed_decays_when_bytes_stop_advancing():
     assert "190.0 GiB of 200.0 GiB" in text
     if decayed < 1:
         assert "waiting for the cloud upload" in text
+
+
+def test_backup_exit3_with_snapshot_is_partial_success():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+
+    runner._operation = "backup"
+    runner._stopping = False
+    runner.last_snapshot_id = "abc123"
+    runner.last_backup_summary = {"total_files_processed": 1234, "data_added": 5 * 1024**3}
+    stderr = (
+        '{"message_type":"error","error":{"message":"/home/x/y: permission denied"},'
+        '"during":"archival","item":"/home/x/y"}\n'
+        '{"message_type":"exit_error","code":3,'
+        '"message":"Warning: at least one source file could not be read"}\n'
+    )
+    runner._stderr_text = stderr
+    runner._process = None
+    runner._on_finished(3, 0)
+
+    ok, msg = seen[-1]
+    assert ok is True
+    assert "snapshot of 1234 files" in msg
+    assert "could not be read" in msg
