@@ -646,3 +646,12 @@ def test_rclone_timeout_option_always_present():
     assert any("serve restic" in a for a in opts)
 
     assert _extended_options("/local/repo", {"connections": 8}) == []
+
+
+def test_check_failure_message_not_nonsensical():
+    from packrat.restic import _result_message
+
+    msg = _result_message("check", False, 11, "repository is already locked")
+    assert msg == "Integrity check failed (exit 11): repository is already locked"
+    ok = _result_message("check", True, 0, "")
+    assert ok == "Integrity check passed"

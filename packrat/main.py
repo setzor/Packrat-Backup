@@ -398,6 +398,31 @@ class MainWindow(QMainWindow):
             )
         else:
             self.tray.show_message("Packrat Backup", "Repository verification failed!")
+            if "unlock" in message.lower() or "unable to create lock" in message.lower():
+                answer = QMessageBox.question(
+                    self,
+                    "Packrat Backup",
+                    f"The integrity check failed because the repository is locked by an interrupted run:\n{message}\n\nRemove the stale lock and retry the check?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.Yes,
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+
+                def worker() -> None:
+                    ok, detail = self.backend.remove_stale_lock()
+
+                    def deliver() -> None:
+                        if not ok:
+                            QMessageBox.warning(self, "Packrat Backup", f"Unlock failed: {detail}")
+                            return
+                        log.info("Stale lock removed; retrying integrity check")
+                        self.start_check()
+
+                    QTimer.singleShot(0, deliver)
+
+                threading.Thread(target=worker, daemon=True).start()
+                return
             QMessageBox.warning(
                 self, "Packrat Backup", f"Repository integrity check failed:\n\n{message}"
             )
