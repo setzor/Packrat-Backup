@@ -396,3 +396,35 @@ def test_backup_exit3_with_snapshot_is_partial_success():
     assert ok is True
     assert "snapshot of 1234 files" in msg
     assert "could not be read" in msg
+
+
+def test_unreadable_files_collected_from_error_messages():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.config/google-chrome/SingletonLock",
+            "error": {"message": "open: permission denied"},
+        }
+    )
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.cache/big/dir/with/very/long/path/somefile.db",
+            "error": {"message": "no such file or directory"},
+        }
+    )
+    runner._handle_backup_message(
+        {
+            "message_type": "error",
+            "item": "/home/user/.config/google-chrome/SingletonLock",
+            "error": {"message": "open: permission denied"},
+        }
+    )
+
+    assert runner.unreadable_files == [
+        "/home/user/.config/google-chrome/SingletonLock: open: permission denied",
+        "/home/user/.cache/big/dir/with/very/long/path/somefile.db: no such file or directory",
+    ]

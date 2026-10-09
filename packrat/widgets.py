@@ -5,11 +5,15 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QPushButton,
@@ -104,3 +108,75 @@ def human_size(num: float) -> str:
             return f"{value:.1f} {unit}"
         value /= 1024
     return f"{value:.1f} PiB"
+
+
+class SkippedFilesDialog(QDialog):
+    """Scrollable, filterable list of files a backup could not read.
+
+    Designed for the worst case: thousands of entries with very long
+    paths. A filter box narrows the list, monospace rendering keeps
+    columns readable, and Copy puts the whole (filtered) list on the
+    clipboard for pasting into an issue or terminal.
+    """
+
+    def __init__(self, entries: List[str], parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Files skipped by the backup")
+        self.resize(780, 480)
+        self._entries = list(entries)
+
+        layout = QVBoxLayout(self)
+        head = QHBoxLayout()
+        self._count_label = QLabel("")
+        head.addWidget(self._count_label)
+        self._filter_input = QLineEdit()
+        self._filter_input.setPlaceholderText("Filter by path or error…")
+        self._filter_input.setClearButtonEnabled(True)
+        self._filter_input.textChanged.connect(self._refill)
+        head.addWidget(self._filter_input, stretch=1)
+        copy_button = QPushButton("Copy list")
+        copy_button.clicked.connect(self._copy)
+        head.addWidget(copy_button)
+        layout.addLayout(head)
+
+        self._list = QListWidget()
+        self._list.setFont(QFont("Monospace"))
+        self._list.setWordWrap(False)
+        self._list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._list.setAlternatingRowColors(True)
+        self._list.itemDoubleClicked.connect(self._copy_item)
+        layout.addWidget(self._list, stretch=1)
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.accept)
+        tail = QHBoxLayout()
+        tail.addStretch(1)
+        tail.addWidget(close_button)
+        layout.addLayout(tail)
+
+        self._refill()
+
+    def _refill(self) -> None:
+        needle = self._filter_input.text().strip().lower()
+        self._list.clear()
+        shown = 0
+        for entry in self._entries:
+            if needle and needle not in entry.lower():
+                continue
+            item = QListWidgetItem(entry)
+            item.setToolTip(entry)
+            self._list.addItem(item)
+            shown += 1
+        total = len(self._entries)
+        if needle:
+            self._count_label.setText(f"{shown} of {total} entries")
+        else:
+            plural = "y" if total == 1 else "ies"
+            self._count_label.setText(f"{total} entr{plural}")
+
+    def _copy(self) -> None:
+        entries = [self._list.item(i).text() for i in range(self._list.count())]
+        QApplication.clipboard().setText("\n".join(entries))
+
+    def _copy_item(self, item: QListWidgetItem) -> None:
+        QApplication.clipboard().setText(item.text())

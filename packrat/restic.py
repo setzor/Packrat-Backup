@@ -57,6 +57,7 @@ class ResticRunner(QObject):
         self._repo_is_cloud: bool = False
         self.last_snapshot_id: str = ""
         self.last_backup_summary: dict = {}
+        self.unreadable_files: List[str] = []
 
     # ------------------------------------------------------------------ helpers
     @staticmethod
@@ -118,6 +119,7 @@ class ResticRunner(QObject):
         self._last_bytes_done = 0
         self._start_tick_timer()
         self.last_backup_summary = {}
+        self.unreadable_files = []
         proc.start()
 
     def _start_tick_timer(self) -> None:
@@ -275,6 +277,17 @@ class ResticRunner(QObject):
             self._last_total_bytes = int(msg.get("total_bytes") or 0)
             self._last_bytes_done = int(msg.get("bytes_done") or 0)
             self.progress.emit(percent, _status_text(msg, self._byte_counter_text(msg)))
+        elif kind == "error":
+            item = str(msg.get("item") or "")
+            reason = ""
+            error = msg.get("error")
+            if isinstance(error, dict):
+                reason = str(error.get("message") or "")
+            if not reason:
+                reason = str(error or "")
+            line = f"{item}: {reason}" if item else reason
+            if line and line not in self.unreadable_files:
+                self.unreadable_files.append(line)
         elif kind == "summary":
             snapshot_id = msg.get("snapshot_id")
             if snapshot_id:

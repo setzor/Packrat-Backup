@@ -48,6 +48,7 @@ from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
 from .tray import TrayController
+from .widgets import SkippedFilesDialog
 
 log = logging.getLogger(__name__)
 
@@ -754,6 +755,21 @@ class MainWindow(QMainWindow):
         if message == "Stopped by user.":
             self.tray.show_message("Packrat Backup", "Backup stopped. Saved snapshots are safe.")
             self._start_post_stop_cleanup()
+            return
+        skipped = self.backend.restic.unreadable_files
+        if "could not be read" in message and skipped:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning if not success else QMessageBox.Icon.Information)
+            box.setWindowTitle("Packrat Backup")
+            box.setText(message)
+            box.setInformativeText(
+                f"{len(skipped)} file{'s' if len(skipped) != 1 else ''} could not be read."
+            )
+            details_button = box.addButton("Details…", QMessageBox.ButtonRole.ActionRole)
+            box.addButton(QMessageBox.StandardButton.Close)
+            box.exec()
+            if box.clickedButton() is details_button:
+                SkippedFilesDialog(skipped, self).exec()
             return
         if not success:
             QMessageBox.warning(self, "Packrat Backup", message)
