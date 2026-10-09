@@ -122,6 +122,7 @@ class ResticRunner(QObject):
         self._start_tick_timer()
         self.last_backup_summary = {}
         self.unreadable_files = []
+        self.last_snapshot_id = ""
         proc.start()
 
     def _start_tick_timer(self) -> None:
@@ -427,7 +428,7 @@ class ResticRunner(QObject):
                 self._stderr_text = ""
                 self.finished.emit(True, message)
                 return
-        if self._operation == "dry-run" and not success:
+        if self._operation == "dry-run" and not success and exit_code == 3:
             summary = _parse_dry_run_summary(stdout)
             warning = _extract_exit_warning(stderr)
             if summary and warning:

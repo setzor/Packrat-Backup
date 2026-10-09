@@ -525,3 +525,110 @@ def test_count_ls_nodes_counts_streaming_chunks():
     )
     assert _count_ls_nodes(chunk) == 2
     assert _count_ls_nodes("") == 0
+
+
+def test_fatal_exit_never_becomes_partial_success():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+
+    runner._operation = "backup"
+    runner._stopping = False
+    runner.last_snapshot_id = "stale-from-previous-run"
+    runner.last_backup_summary = {"total_files_processed": 10, "data_added": 5}
+    runner._stderr_text = "Fatal: wrong password or no key found"
+    runner._process = None
+    runner._on_finished(10, 0)
+
+    ok, msg = seen[-1]
+    assert ok is False
+    assert "failed (exit 10)" in msg
+
+
+def test_exit_code_gate_rejects_non_warning_codes():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    seen = []
+    runner.finished.connect(lambda ok, msg: seen.append((ok, msg)))
+
+    runner._operation = "dry-run"
+    runner._stopping = False
+    runner._process = None
+    runner._buffer = '{"message_type":"summary","files_new":1,"dry_run":true}'
+    runner._stderr_text = '{"message_type":"exit_error","code":1,"message":"Fatal: something else"}'
+    runner._on_finished(1, 0)
+
+    ok, msg = seen[-1]
+    assert ok is False
+
+
+def test_launch_resets_last_snapshot_id(tmp_path, monkeypatch):
+    import stat
+    import textwrap
+
+    binary = tmp_path / "fake-restic"
+    binary.write_text(textwrap.dedent("#!/bin/sh\nexit 0\n"))
+    binary.chmod(binary.stat().st_mode | stat.S_IEXEC)
+    monkeypatch.setenv("PACKRAT_RESTIC_BINARY", str(binary))
+
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    runner.last_snapshot_id = "previous-run"
+    import types
+
+    captured = {}
+
+    class Proc:
+        ExitStatus = type("ES", (), {"NormalExit": 0})
+        ProcessState = type("PS", (), {"NotRunning": 0})
+        readyReadStandardOutput = None
+        readyReadStandardError = None
+        finished = None
+
+        def __init__(self, *a, **k):
+            self.readyReadStandardOutput = types.SimpleNamespace(connect=lambda f: None)
+            self.readyReadStandardError = types.SimpleNamespace(connect=lambda f: None)
+            self.finished = types.SimpleNamespace(connect=lambda f: None)
+
+        def setProgram(self, p):
+            captured["program"] = p
+
+        def setArguments(self, a):
+            captured["args"] = a
+
+        def setProcessEnvironment(self, e):
+            pass
+
+        def setWorkingDirectory(self, w):
+            pass
+
+        def start(self):
+            captured["started"] = True
+
+    import packrat.restic as restic_mod
+
+    class Env:
+        @staticmethod
+        def systemEnvironment():
+            return Env()
+
+        def insert(self, *a):
+            pass
+
+        def remove(self, *a):
+            pass
+
+    orig = restic_mod.QProcess
+    orig_env = restic_mod.QProcessEnvironment
+    restic_mod.QProcess = Proc
+    restic_mod.QProcessEnvironment = Env
+    try:
+        runner._launch("repo", "pw", ["snapshots", "--json"], "snapshots")
+    finally:
+        restic_mod.QProcess = orig
+        restic_mod.QProcessEnvironment = orig_env
+    assert runner.last_snapshot_id == ""
