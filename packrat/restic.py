@@ -395,7 +395,7 @@ class ResticRunner(QObject):
             self.snapshots_listed.emit(_parse_snapshots(stdout))
         elif self._operation == "ls" and success:
             self.files_listed.emit(_parse_ls_nodes(stdout))
-        elif self._operation == "dry-run" and success:
+        elif self._operation == "dry-run":
             self.dry_run_ready.emit(_parse_dry_run_summary(stdout))
         elif self._operation == "prune" and success:
             self.prune_stats_ready.emit(
@@ -421,6 +421,17 @@ class ResticRunner(QObject):
                 self._buffer = ""
                 self._stderr_text = ""
                 self.finished.emit(True, message)
+                return
+        if self._operation == "dry-run" and not success:
+            summary = _parse_dry_run_summary(stdout)
+            warning = _extract_exit_warning(stderr)
+            if summary and warning:
+                self._buffer = ""
+                self._stderr_text = ""
+                self.finished.emit(
+                    True,
+                    f"Preview ready, but {warning}",
+                )
                 return
         message = _result_message(self._operation, success, exit_code, stderr)
         self._buffer = ""

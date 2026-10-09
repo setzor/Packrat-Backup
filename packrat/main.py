@@ -384,6 +384,11 @@ class MainWindow(QMainWindow):
         self.overview_page.set_checking(False)
         self.overview_page.clear_progress()
         log_run("check", success, message, _dt.datetime.now().isoformat(timespec="seconds"))
+        self.settings.last_verified_time = _dt.datetime.now().isoformat(timespec="seconds")
+        self.settings.last_verified_ok = success
+        self.settings.last_verified_snapshot_id = self.backend.last_snapshot_id
+        self.settings.save()
+        self._refresh_overview()
         self.history_page.refresh()
         if success:
             self.tray.show_message("Packrat Backup", "Repository verification succeeded.")

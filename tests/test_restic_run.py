@@ -465,3 +465,36 @@ def test_adopt_newest_snapshot_time_reconciles_overdue_badge():
     before = win.settings.last_backup_time
     win._adopt_newest_snapshot_time(older)
     assert win.settings.last_backup_time == before
+
+
+def test_dry_run_exit3_with_summary_is_partial_success():
+    from packrat.restic import ResticRunner
+
+    runner = ResticRunner()
+    finished = []
+    runner.finished.connect(lambda ok, msg: finished.append((ok, msg)))
+    dry_runs = []
+    runner.dry_run_ready.connect(lambda s: dry_runs.append(s))
+
+    runner._operation = "dry-run"
+    runner._stopping = False
+    runner._process = None
+    runner._buffer = (
+        '{"message_type":"status","percent_done":0.5,"total_bytes":100,"bytes_done":50}\n'
+        '{"message_type":"summary","files_new":12,"files_changed":0,'
+        '"total_files_processed":120,"total_bytes_processed":5000,'
+        '"data_added":3000,"snapshot_id":"x","dry_run":true}\n'
+    )
+    runner._stderr_text = (
+        '{"message_type":"error","error":{"message":"/tmp/f: permission denied"},'
+        '"during":"archival","item":"/tmp/f"}\n'
+        '{"message_type":"exit_error","code":3,'
+        '"message":"Warning: at least one source file could not be read"}\n'
+    )
+    runner._on_finished(3, 0)
+
+    ok, msg = finished[-1]
+    assert ok is True
+    assert "Preview ready" in msg
+    assert "could not be read" in msg
+    assert dry_runs and dry_runs[0]["total_files_processed"] == 120
