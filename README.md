@@ -107,8 +107,8 @@ real restic init/backup/restore roundtrip when restic is installed.
 Packrat ships as both RPM and DEB, built in CI (Fedora 44 and Debian 13
 containers) on every push:
 
-- Desktop entry: `org.packrat.Backup.desktop`
-- AppStream metadata: `org.packrat.Backup.metainfo.xml`
+- Desktop entry: `io.github.setzor.PackratBackup.desktop`
+- AppStream metadata: `io.github.setzor.PackratBackup.metainfo.xml`
 - RPM spec: `packrat.spec`
 - Debian packaging: `debian/`
 - Icons: `icons/` (scalable SVG + 128px PNG)

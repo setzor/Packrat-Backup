@@ -2,4 +2,4 @@
 
 __version__ = "0.3.0"
 APP_NAME = "Packrat Backup"
-APP_ID = "org.packrat.Backup"
+APP_ID = "io.github.setzor.PackratBackup"

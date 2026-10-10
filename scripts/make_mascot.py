@@ -111,4 +111,4 @@ if __name__ == "__main__":
     here = os.path.dirname(os.path.abspath(__file__))
     root = os.path.dirname(here)
     make_png(os.path.join(root, "packrat", "assets", "packrat-mascot.png"))
-    make_png(os.path.join(root, "icons", "128x128", "apps", "org.packrat.Backup.png"))
+    make_png(os.path.join(root, "icons", "128x128", "apps", "io.github.setzor.PackratBackup.png"))

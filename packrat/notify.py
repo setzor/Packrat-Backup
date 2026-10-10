@@ -6,7 +6,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-_ICON = "org.packrat.Backup"
+_ICON = "io.github.setzor.PackratBackup"
 
 
 def notify(title: str, body: str, urgency: str = "normal") -> None:

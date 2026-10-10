@@ -63,7 +63,7 @@ def test_close_to_tray_persists(qapp):
 
 def test_autostart_install_and_remove(autostart_dir):
     assert update_autostart(True) is True
-    entry = autostart_dir / "org.packrat.Backup.desktop"
+    entry = autostart_dir / "io.github.setzor.PackratBackup.desktop"
     assert entry.exists()
     content = entry.read_text()
     assert "Exec=" in content
@@ -75,7 +75,7 @@ def test_autostart_install_and_remove(autostart_dir):
 
 def test_autostart_remove_when_absent(autostart_dir):
     assert update_autostart(False) is True
-    assert not (autostart_dir / "org.packrat.Backup.desktop").exists()
+    assert not (autostart_dir / "io.github.setzor.PackratBackup.desktop").exists()
 
 
 def test_restore_refresh_setting_roundtrip(qapp):
