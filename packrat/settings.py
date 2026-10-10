@@ -75,6 +75,7 @@ class Settings:
         "auto_prune_interval_days",
         "cloud_connections",
         "cloud_pack_size",
+        "precache_snapshots",
         "last_prune_time",
         "last_verified_time",
         "last_verified_ok",
@@ -113,6 +114,7 @@ class Settings:
         self.auto_prune_interval_days: int = 7
         self.cloud_connections: int = 8
         self.cloud_pack_size: int = 64
+        self.precache_snapshots: bool = True
         self.last_prune_time: str = ""
         self.last_verified_time: str = ""
         self.last_verified_ok: bool = False
@@ -194,6 +196,7 @@ class Settings:
         self.cloud_pack_size = self._bounded_int(
             s.value("cloud_pack_size", 64, type=int), default=64, low=16, high=128
         )
+        self.precache_snapshots = to_bool(s.value("precache_snapshots", True, type=bool))
         self.last_prune_time = s.value("last_prune_time", "", type=str)
         self.last_verified_time = s.value("last_verified_time", "", type=str)
         self.last_verified_ok = to_bool(s.value("last_verified_ok", False, type=bool))
@@ -232,6 +235,7 @@ class Settings:
         s.setValue("verify_after_backup", self.verify_after_backup)
         s.setValue("cloud_connections", self.cloud_connections)
         s.setValue("cloud_pack_size", self.cloud_pack_size)
+        s.setValue("precache_snapshots", self.precache_snapshots)
         s.setValue("last_prune_time", self.last_prune_time)
         s.setValue("last_verified_time", self.last_verified_time)
         s.setValue("last_verified_ok", self.last_verified_ok)

@@ -24,6 +24,7 @@ def test_preferences_page_roundtrip(qapp):
         "restore_refresh_minutes": 60,
         "cloud_connections": 8,
         "cloud_pack_size": 64,
+        "precache_snapshots": True,
         "verify_after_backup": "sample",
         "change_detection": True,
         "changed_files_threshold": 35,
@@ -38,6 +39,7 @@ def test_preferences_page_roundtrip(qapp):
         "restore_refresh_minutes": 60,
         "cloud_connections": 8,
         "cloud_pack_size": 64,
+        "precache_snapshots": True,
         "verify_after_backup": "sample",
         "change_detection": True,
         "changed_files_threshold": 35,
@@ -97,3 +99,12 @@ def test_preferences_page_minimum_size_stays_compact(qapp):
     hint = page.minimumSizeHint()
     assert hint.width() <= 700, f"Preferences page minimum width regressed: {hint.width()}"
     assert hint.height() <= 900, f"Preferences page minimum height regressed: {hint.height()}"
+
+
+def test_precache_setting_roundtrip(qapp):
+    settings = Settings()
+    assert settings.precache_snapshots is True
+    settings.precache_snapshots = False
+    settings.save()
+    reloaded = Settings()
+    assert reloaded.precache_snapshots is False
