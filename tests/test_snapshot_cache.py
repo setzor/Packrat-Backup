@@ -67,4 +67,3 @@ def test_cache_file_lives_in_cache_dir(tmp_path):
     data = json.loads(path.read_text())
     assert data["snapshots"]["snap1"]["repo"] == "repo"
     assert data["snapshots"]["snap1"]["nodes"] == _nodes()
-
