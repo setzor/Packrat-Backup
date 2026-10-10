@@ -83,7 +83,7 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at: Optional[_dt.datetime] = None
         self._snapshots_loaded_after_backup: str = ""
         self._verify_pending: bool = False
-        self._precache_snapshot_id: str = ""
+        self._ls_snapshot_id: str = ""
         self._cleanup_after_stop: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
@@ -662,10 +662,11 @@ class MainWindow(QMainWindow):
         if operation == "snapshots" and not success:
             self.restore_page.set_loading(False)
         elif operation == "ls" and not success:
-            if self._browser is not None:
-                self._browser.set_error(f"Could not list snapshot contents: {message}")
-            else:
-                self._precache_snapshot_id = ""
+            snapshot_id = self._ls_snapshot_id
+            self._ls_snapshot_id = ""
+            browser = self._browser
+            if browser is not None and browser.snapshot_id() == snapshot_id:
+                browser.set_error(f"Could not list snapshot contents: {message}")
 
     def _on_browse_snapshot(self, snapshot_id: str, snapshot_time: str) -> None:
         if self.backend.is_busy():
@@ -700,22 +701,27 @@ class MainWindow(QMainWindow):
         if self._browser is not None:
             self._browser.set_loading(True)
             self._browser.set_refresh_available(False)
+        self._ls_snapshot_id = snapshot_id
         try:
             self.backend.list_snapshot_files(snapshot_id)
         except (BackendError, ResticProcessError) as exc:
+            self._ls_snapshot_id = ""
             if self._browser is not None:
                 self._browser.set_error(f"Could not list snapshot contents: {exc}")
 
     def _on_files_ready(self, nodes) -> None:
-        if self._browser is not None:
-            self._browser.set_loading(False)
-            self._browser.set_nodes(nodes)
-            self._browser.set_refresh_available(False)
-            save_cached_nodes(self.backend.repo_location(), self._browser.snapshot_id(), nodes)
-        elif self._precache_snapshot_id:
-            snapshot_id = self._precache_snapshot_id
-            self._precache_snapshot_id = ""
-            save_cached_nodes(self.backend.repo_location(), snapshot_id, nodes)
+        snapshot_id = self._ls_snapshot_id
+        self._ls_snapshot_id = ""
+        if snapshot_id:
+            try:
+                save_cached_nodes(self.backend.repo_location(), snapshot_id, nodes)
+            except BackendError:
+                pass
+        browser = self._browser
+        if browser is not None and browser.snapshot_id() == snapshot_id:
+            browser.set_loading(False)
+            browser.set_nodes(nodes)
+            browser.set_refresh_available(False)
 
     def _maybe_precache_snapshot(self) -> None:
         """List the newest snapshot in the background so the first browse is instant (#81).
@@ -736,11 +742,11 @@ class MainWindow(QMainWindow):
                 return
         except BackendError:
             return
-        self._precache_snapshot_id = snapshot_id
+        self._ls_snapshot_id = snapshot_id
         try:
             self.backend.list_snapshot_files(snapshot_id)
         except (BackendError, ResticProcessError):
-            self._precache_snapshot_id = ""
+            self._ls_snapshot_id = ""
 
     def _on_browser_closed(self) -> None:
         sender = self.sender()
