@@ -28,11 +28,38 @@ def _repo_key(repo_location: str) -> str:
     return os.path.expanduser(str(repo_location))
 
 
+def id_matches(cached_id: str, live_id: str) -> bool:
+    """Compare snapshot ids tolerantly.
+
+    The Restore page browses with restic's ``short_id`` (8 hex chars)
+    while ``restic backup`` reports the full 64-char id, so a cache
+    entry written by one flow must still be found by the other. Restic
+    short ids are always a prefix of the full id.
+    """
+    if not cached_id or not live_id:
+        return False
+    return cached_id == live_id or live_id.startswith(cached_id) or cached_id.startswith(live_id)
+
+
+def _matching_key(snapshots: dict, snapshot_id: str) -> Optional[str]:
+    if not snapshot_id:
+        return None
+    if snapshot_id in snapshots:
+        return snapshot_id
+    for key in snapshots:
+        if id_matches(key, snapshot_id):
+            return key
+    return None
+
+
 def load_cached_nodes(repo_location: str, snapshot_id: str) -> Optional[List[dict]]:
     data = _read_cache()
     if data is None:
         return None
-    entry = data.get("snapshots", {}).get(snapshot_id)
+    key = _matching_key(data.get("snapshots", {}), snapshot_id)
+    if not key:
+        return None
+    entry = data["snapshots"][key]
     if not entry:
         return None
     if entry.get("repo") != _repo_key(repo_location):
@@ -50,7 +77,8 @@ def save_cached_nodes(repo_location: str, snapshot_id: str, nodes: List[dict]) -
     if data.get("format") != CACHE_FORMAT:
         data = {"format": CACHE_FORMAT, "snapshots": {}}
     snapshots = data.setdefault("snapshots", {})
-    snapshots[snapshot_id] = {
+    key = _matching_key(snapshots, snapshot_id) or snapshot_id
+    snapshots[key] = {
         "repo": _repo_key(repo_location),
         "time": time.time(),
         "nodes": nodes,
@@ -76,7 +104,9 @@ def clear_cached_nodes(snapshot_id: str) -> None:
     data = _read_cache()
     if data is None:
         return
-    if data.setdefault("snapshots", {}).pop(snapshot_id, None) is not None:
+    snapshots = data.setdefault("snapshots", {})
+    key = _matching_key(snapshots, snapshot_id)
+    if key is not None and snapshots.pop(key, None) is not None:
         _write_cache(data)
 
 
