@@ -77,3 +77,17 @@ def test_ls_failure_reports_only_to_matching_dialog(qapp):
     window._on_operation_finished("ls", False, "boom")
     assert window._ls_snapshot_id == ""
     assert not dialog._error_label.isVisibleTo(dialog)
+
+
+def test_prune_keeps_short_id_entry_for_live_snapshot(qapp):
+    window = _Harness()
+
+    def prune(snapshots):
+        return MethodType(MainWindow._prune_snapshot_cache, window)(snapshots)
+
+    full_id = "abcd1234" + "e" * 24
+    snapshot_cache.save_cached_nodes("rclone:onedrive:packrat", "abcd1234", _nodes("a"))
+    prune([{"id": full_id, "time": "2026-01-01T00:00:00Z"}])
+    assert snapshot_cache.load_cached_nodes("rclone:onedrive:packrat", "abcd1234") == _nodes("a")
+    prune([{"id": "ffff" + "0" * 28, "time": "2026-01-01T00:00:00Z"}])
+    assert snapshot_cache.load_cached_nodes("rclone:onedrive:packrat", "abcd1234") is None

@@ -67,3 +67,38 @@ def test_cache_file_lives_in_cache_dir(tmp_path):
     data = json.loads(path.read_text())
     assert data["snapshots"]["snap1"]["repo"] == "repo"
     assert data["snapshots"]["snap1"]["nodes"] == _nodes()
+
+
+def test_short_id_finds_full_id_entry(tmp_path):
+    full_id = "abcd1234" + "e" * 24
+    snapshot_cache.save_cached_nodes("rclone:onedrive:idmatch", full_id, _nodes())
+    loaded = snapshot_cache.load_cached_nodes("rclone:onedrive:idmatch", "abcd1234")
+    assert loaded == _nodes()
+
+
+def test_full_id_finds_short_id_entry(tmp_path):
+    full_id = "abcd1234" + "e" * 24
+    snapshot_cache.save_cached_nodes("rclone:onedrive:idmatch", "abcd1234", _nodes())
+    loaded = snapshot_cache.load_cached_nodes("rclone:onedrive:idmatch", full_id)
+    assert loaded == _nodes()
+
+
+def test_save_reuses_matching_entry_instead_of_duplicating(tmp_path):
+    snapshot_cache.save_cached_nodes("repo-idmatch", "abcd1234", _nodes())
+    snapshot_cache.save_cached_nodes("repo-idmatch", "abcd1234" + "e" * 24, _nodes())
+    ids = snapshot_cache.list_cached_snapshot_ids("repo-idmatch")
+    assert len(ids) == 1
+    assert snapshot_cache.load_cached_nodes("repo-idmatch", "abcd1234" + "e" * 24) is not None
+    assert snapshot_cache.load_cached_nodes("repo-idmatch", "abcd1234") is not None
+
+
+def test_clear_by_short_id_removes_full_id_entry(tmp_path):
+    full_id = "abcd1234" + "e" * 24
+    snapshot_cache.save_cached_nodes("repo-idmatch", full_id, _nodes())
+    snapshot_cache.clear_cached_nodes("abcd1234")
+    assert snapshot_cache.load_cached_nodes("repo-idmatch", full_id) is None
+
+
+def test_unrelated_id_is_not_matched_by_prefix_rule(tmp_path):
+    snapshot_cache.save_cached_nodes("repo", "ffff0000", _nodes())
+    assert snapshot_cache.load_cached_nodes("repo-idmatch", "abcd1234") is None

@@ -50,6 +50,7 @@ from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
 from .snapshot_cache import (
     clear_cached_nodes,
+    id_matches,
     list_cached_snapshot_ids,
     load_cached_nodes,
     save_cached_nodes,
@@ -524,7 +525,7 @@ class MainWindow(QMainWindow):
         if not live:
             return
         for snap_id in list_cached_snapshot_ids(repo):
-            if snap_id not in live:
+            if not any(id_matches(snap_id, live_id) for live_id in live):
                 clear_cached_nodes(snap_id)
 
     @staticmethod
