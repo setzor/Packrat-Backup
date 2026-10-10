@@ -20,7 +20,10 @@ Drive and many other providers.
   and a "Back up now" button for the impatient.
 - **Restore browser** list snapshots (with the folders each one contains) and
   restore any of them to any folder — or just the individual files and folders
-  you need.
+  you need. Repeat visits open instantly thanks to a contents cache, and new
+  snapshots are pre-cached in the background after each backup.
+- **Stop and clean up** stop a running backup and automatically remove the
+  leftover data from interrupted runs.
 - **Change detection** Packrat watches how much of your data changed in each
   backup and warns loudly when a run looks like ransomware encryption or an
   accidental mass edit.
@@ -41,10 +44,10 @@ in CI:
 
 ```bash
 # Fedora
-sudo dnf install ./packrat-0.2.0-1.fc44.x86_64.rpm
+sudo dnf install ./packrat-0.3.0-1.fc44.x86_64.rpm
 
 # Debian / Ubuntu
-sudo apt install ./packrat_0.2.0-1_all.deb
+sudo apt install ./packrat_0.3.0-1_all.deb
 ```
 
 The packages depend on `restic` and `python3-pyqt6` (and recommend `rclone`

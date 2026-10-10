@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.2.0
+Version:        0.3.0
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,20 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 
 
 %changelog
+* Sat Oct 10 2026 Packrat Backup contributors <noreply@github.com> - 0.3.0-1
+- Add snapshot contents cache: repeat and pre-cached snapshot browsing is instant (issue #81)
+- Add background pre-caching of new snapshot contents after each backup, with a Preferences toggle
+- Add a Refresh button to the snapshot browser to re-list from the destination
+- Add stop for running backups with automatic cleanup of interrupted runs (issue #63)
+- Add scheduled auto-prune, rclone backend tuning and restic v2 repositories (issue #64)
+- Add live progress during backup estimates and while listing snapshot contents
+- Add Debian packaging with a DEB CI workflow
+- Fix snapshot listings routed to the wrong browser dialog or cache entry
+- Fix stale-lock integrity checks with unlock-and-retry
+- Fix partial backups (exit 3) reported as failures despite a saved snapshot
+- Fix nanosecond snapshot timestamps breaking Python 3.10
+- Fix cloud progress showing disk-speed-based ETAs
+- Fix rclone serve restic failing on unknown --dir-cache-time flag
 * Sun Oct 04 2026 Packrat Backup contributors <noreply@github.com> - 0.2.0-1
 - Add change detection: warn when a backup shows mass-change patterns (issue #29 stage 1)
 - Add Overview "Change check" tile, red badge and urgent notification on suspicious runs
