@@ -47,13 +47,13 @@ from .pages import (
 from .passwords import load_password, store_password
 from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
+from .settings import ScheduleMode, Settings, update_autostart
 from .snapshot_cache import (
     clear_cached_nodes,
     list_cached_snapshot_ids,
     load_cached_nodes,
     save_cached_nodes,
 )
-from .settings import ScheduleMode, Settings, update_autostart
 from .tray import TrayController
 from .widgets import SkippedFilesDialog
 
