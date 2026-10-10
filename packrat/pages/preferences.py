@@ -114,6 +114,19 @@ class PreferencesPage(QWidget):
         cloud_hint.setWordWrap(True)
         cloud_hint.setStyleSheet("color: #555;")
         performance_layout.addWidget(cloud_hint)
+
+        self._precache_check = QCheckBox(
+            "Pre-cache new snapshot contents in the background after each backup"
+        )
+        self._precache_check.setToolTip(
+            "After a backup finishes, Packrat quietly lists the new snapshot's "
+            'files so opening "Browse Contents" on it is instant.\nOn cloud '
+            "destinations this happens while restic's local cache is still "
+            "warm, so it costs seconds instead of the minutes a cold browse "
+            "can take. Turn it off on metered connections."
+        )
+        self._precache_check.stateChanged.connect(self._on_changed)
+        performance_layout.addWidget(self._precache_check)
         root.addWidget(performance_box)
 
         verify_box = QGroupBox("Verified restores")
@@ -174,6 +187,9 @@ class PreferencesPage(QWidget):
         self._cloud_pack_size_spin.blockSignals(True)
         self._cloud_pack_size_spin.setValue(int(settings.cloud_pack_size))
         self._cloud_pack_size_spin.blockSignals(False)
+        self._precache_check.blockSignals(True)
+        self._precache_check.setChecked(settings.precache_snapshots)
+        self._precache_check.blockSignals(False)
         self._verify_combo.blockSignals(True)
         index = self._verify_combo.findData(settings.verify_after_backup)
         self._verify_combo.setCurrentIndex(index if index >= 0 else 0)
@@ -192,6 +208,7 @@ class PreferencesPage(QWidget):
             "restore_refresh_minutes": self._restore_refresh_spin.value(),
             "cloud_connections": self._cloud_connections_spin.value(),
             "cloud_pack_size": self._cloud_pack_size_spin.value(),
+            "precache_snapshots": self._precache_check.isChecked(),
             "verify_after_backup": self._verify_combo.currentData(),
             "change_detection": self._change_check.isChecked(),
             "changed_files_threshold": self._change_spin.value(),
