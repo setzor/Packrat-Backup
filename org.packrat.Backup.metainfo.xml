@@ -26,6 +26,9 @@
   </developer>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.0" date="2026-10-10">
+      <description><p>Feature release: browsing a snapshot is now instant on repeat visits thanks to a contents cache, and new snapshots are pre-cached in the background after each backup (configurable in Preferences). Running backups can be stopped, with leftover data cleaned up automatically. Scheduled auto-pruning keeps cloud repositories tidy, with rclone tuning and restic v2 repositories for faster cloud backups. The estimate button now streams live progress, snapshot listings show a live item count, and Debian packages are built in CI. Fixes: snapshot listings no longer land in the wrong browser window or cache entry, stale-lock integrity checks offer unlock-and-retry, partial backups are no longer reported as failures, nanosecond timestamps no longer break Python 3.10, cloud progress no longer shows disk-speed-based ETAs, and rclone serve no longer fails on an unsupported flag.</p></description>
+    </release>
     <release version="0.2.0" date="2026-10-04">
       <description><p>Feature release: change detection warns loudly when a backup shows ransomware-like mass changes (Overview tile, red badge, urgent notification, configurable threshold in Preferences); restore individual files or folders from a snapshot; preview the next backup's size with a dry-run estimate; verified restores prove each backup restorable after it finishes; the History page shows which snapshots were verified. Fixes: Overview progress bar no longer flickers between spinner and percent during backups, rclone repository probing no longer attempts init with an invalid location, weekly catch-up honours schedules missed for longer than 8 days, and settings lists round-trip entries containing commas.</p></description>
     </release>
