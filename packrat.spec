@@ -44,21 +44,21 @@ a system tray agent keeps an eye on things in the background.
 %pyproject_install
 
 # Desktop file
-install -D -m 0644 org.packrat.Backup.desktop \
-    %{buildroot}%{_datadir}/applications/org.packrat.Backup.desktop
+install -D -m 0644 io.github.setzor.PackratBackup.desktop \
+    %{buildroot}%{_datadir}/applications/io.github.setzor.PackratBackup.desktop
 
 # AppStream metainfo
-install -D -m 0644 org.packrat.Backup.metainfo.xml \
-    %{buildroot}%{_metainfodir}/org.packrat.Backup.metainfo.xml
+install -D -m 0644 io.github.setzor.PackratBackup.metainfo.xml \
+    %{buildroot}%{_metainfodir}/io.github.setzor.PackratBackup.metainfo.xml
 
 # Icon (mascot SVG from the About page, named after the app id)
 install -D -m 0644 packrat/assets/packrat-mascot.svg \
-    %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/org.packrat.Backup.svg
+    %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/io.github.setzor.PackratBackup.svg
 
 
 %check
-desktop-file-validate %{buildroot}%{_datadir}/applications/org.packrat.Backup.desktop
-appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.metainfo.xml
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.setzor.PackratBackup.desktop
+appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.PackratBackup.metainfo.xml
 
 
 %files
@@ -67,9 +67,9 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/org.packrat.Backup.met
 %{python3_sitelib}/packrat/
 %{python3_sitelib}/packrat-%{version}.dist-info/
 %{_bindir}/packrat
-%{_datadir}/applications/org.packrat.Backup.desktop
-%{_metainfodir}/org.packrat.Backup.metainfo.xml
-%{_datadir}/icons/hicolor/scalable/apps/org.packrat.Backup.svg
+%{_datadir}/applications/io.github.setzor.PackratBackup.desktop
+%{_metainfodir}/io.github.setzor.PackratBackup.metainfo.xml
+%{_datadir}/icons/hicolor/scalable/apps/io.github.setzor.PackratBackup.svg
 
 
 %changelog

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>org.packrat.Backup</id>
+  <id>io.github.setzor.PackratBackup</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Packrat Backup</name>
@@ -18,12 +18,16 @@
       a system tray agent keeps an eye on things in the background.
     </p>
   </description>
-  <launchable type="desktop-id">org.packrat.Backup.desktop</launchable>
+  <launchable type="desktop-id">io.github.setzor.PackratBackup.desktop</launchable>
   <url type="homepage">https://github.com/setzor/Packrat-Backup</url>
   <url type="bugtracker">https://github.com/setzor/Packrat-Backup/issues</url>
-  <developer id="org.packrat">
+  <developer id="io.github.setzor">
     <name>Packrat Backup contributors</name>
   </developer>
+  <branding>
+    <color type="primary" scheme_preference="light">#f2f2f2</color>
+    <color type="primary" scheme_preference="dark">#1f1f1f</color>
+  </branding>
   <content_rating type="oars-1.1"/>
   <releases>
     <release version="0.3.0" date="2026-10-10">

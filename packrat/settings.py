@@ -356,7 +356,7 @@ def update_autostart(run_at_startup: bool) -> bool:
     autostart = (
         Path(os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))) / "autostart"
     )
-    target = autostart / "org.packrat.Backup.desktop"
+    target = autostart / "io.github.setzor.PackratBackup.desktop"
     try:
         if not run_at_startup:
             if target.exists():
@@ -368,7 +368,7 @@ def update_autostart(run_at_startup: bool) -> bool:
             "Type=Application\n"
             "Name=Packrat Backup\n"
             f"Exec={_autostart_exec()}\n"
-            "Icon=org.packrat.Backup\n"
+            "Icon=io.github.setzor.PackratBackup\n"
             "Terminal=false\n"
             "X-KDE-autostart-after=panel\n"
             "Categories=System;FileTools;Archiving;Backup;\n"

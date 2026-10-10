@@ -32,8 +32,8 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
       - name: Validate desktop file and metainfo
         run: |
-          desktop-file-validate org.packrat.Backup.desktop
-          appstreamcli validate --no-net org.packrat.Backup.metainfo.xml
+          desktop-file-validate io.github.setzor.PackratBackup.desktop
+          appstreamcli validate --no-net io.github.setzor.PackratBackup.metainfo.xml
       - name: Upload DEB artifact
         uses: actions/upload-artifact@v4
         with:
