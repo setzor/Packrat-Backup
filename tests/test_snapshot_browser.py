@@ -84,3 +84,16 @@ def test_browser_selection_logic(qapp):
     assert dialog._selected_paths() == ["/tmp/docs/sub"]
 
     dialog.deleteLater()
+
+
+def test_refresh_button_emits_and_toggles(qapp):
+    dialog = SnapshotBrowserDialog("abc1234", "Jan 1 2026")
+    fired = []
+    dialog.refresh_requested.connect(lambda: fired.append(True))
+    assert not dialog._refresh_button.isEnabled()
+    dialog.set_refresh_available(True)
+    assert dialog._refresh_button.isEnabled()
+    dialog._refresh_button.click()
+    assert fired == [True]
+    dialog.set_refresh_available(False)
+    assert not dialog._refresh_button.isEnabled()

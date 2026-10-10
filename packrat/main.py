@@ -48,6 +48,12 @@ from .passwords import load_password, store_password
 from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
+from .snapshot_cache import (
+    clear_cached_nodes,
+    list_cached_snapshot_ids,
+    load_cached_nodes,
+    save_cached_nodes,
+)
 from .tray import TrayController
 from .widgets import SkippedFilesDialog
 
@@ -504,6 +510,20 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at = _dt.datetime.now()
         self._snapshots_loaded_after_backup = self.settings.last_backup_time
         self._adopt_newest_snapshot_time(snapshots)
+        self._prune_snapshot_cache(snapshots)
+
+    def _prune_snapshot_cache(self, snapshots) -> None:
+        """Drop cached listings for snapshots the repository no longer has (#81)."""
+        try:
+            repo = self.backend.repo_location()
+        except BackendError:
+            return
+        live = {snap.get("id") for snap in snapshots if snap.get("id")}
+        if not live:
+            return
+        for snap_id in list_cached_snapshot_ids(repo):
+            if snap_id not in live:
+                clear_cached_nodes(snap_id)
 
     @staticmethod
     def _trim_iso_nanos(raw: str) -> str:
@@ -653,16 +673,38 @@ class MainWindow(QMainWindow):
         self._browser = SnapshotBrowserDialog(snapshot_id, snapshot_time, self)
         self._browser.closed.connect(self._on_browser_closed)
         self._browser.restore_selected_requested.connect(self._on_restore_selected)
-        self._browser.set_loading(True)
+        self._browser.refresh_requested.connect(lambda: self._list_snapshot_files(snapshot_id))
         self._browser.open()
+        cached_nodes = None
+        try:
+            cached_nodes = load_cached_nodes(self.backend.repo_location(), snapshot_id)
+        except BackendError:
+            cached_nodes = None
+        if cached_nodes is not None:
+            self._browser.set_nodes(cached_nodes)
+            self._browser.set_refresh_available(True)
+            return
+        self._list_snapshot_files(snapshot_id)
+
+    def _list_snapshot_files(self, snapshot_id: str) -> None:
+        """Browse flow helper: re-list a snapshot, showing a wait if needed."""
+        if self.backend.is_busy():
+            return
+        if self._browser is not None:
+            self._browser.set_loading(True)
+            self._browser.set_refresh_available(False)
         try:
             self.backend.list_snapshot_files(snapshot_id)
         except (BackendError, ResticProcessError) as exc:
-            self._browser.set_error(f"Could not list snapshot contents: {exc}")
+            if self._browser is not None:
+                self._browser.set_error(f"Could not list snapshot contents: {exc}")
 
     def _on_files_ready(self, nodes) -> None:
         if self._browser is not None:
+            self._browser.set_loading(False)
             self._browser.set_nodes(nodes)
+            self._browser.set_refresh_available(False)
+            save_cached_nodes(self.backend.repo_location(), self._browser.snapshot_id(), nodes)
 
     def _on_browser_closed(self) -> None:
         sender = self.sender()

@@ -24,6 +24,7 @@ class SnapshotBrowserDialog(QDialog):
 
     closed = pyqtSignal()
     restore_selected_requested = pyqtSignal(list)  # absolute paths to restore
+    refresh_requested = pyqtSignal()  # re-list the snapshot, ignoring the cache
 
     def __init__(
         self,
@@ -67,9 +68,17 @@ class SnapshotBrowserDialog(QDialog):
         )
         self._select_button.clicked.connect(self._on_restore_selected)
         self._select_button.setEnabled(False)
+        self._refresh_button = QPushButton("Refresh")
+        self._refresh_button.setToolTip(
+            "List the snapshot contents again from the backup destination, "
+            "instead of using the cached listing."
+        )
+        self._refresh_button.clicked.connect(self.refresh_requested)
+        self._refresh_button.setEnabled(False)
         self._selection_hint = QLabel("")
         self._selection_hint.setStyleSheet("color: #666;")
         select_row.addWidget(self._select_button)
+        select_row.addWidget(self._refresh_button)
         select_row.addWidget(self._selection_hint, 1)
         root.addLayout(select_row)
 
@@ -100,6 +109,10 @@ class SnapshotBrowserDialog(QDialog):
         self._loading_label.setVisible(loading)
         self._loading_bar.setVisible(loading)
 
+    def set_refresh_available(self, available: bool) -> None:
+        """Enable the refresh button once contents are being fetched fresh."""
+        self._refresh_button.setEnabled(available)
+
     def set_loading_text(self, text: str) -> None:
         """Update the loading label while contents stream in."""
         self._loading_label.setText(text)
@@ -108,6 +121,7 @@ class SnapshotBrowserDialog(QDialog):
         self.set_loading(False)
         self._error_label.setText(message)
         self._error_label.setVisible(True)
+        self._refresh_button.setEnabled(True)
 
     def set_nodes(self, nodes) -> None:
         self.set_loading(False)
