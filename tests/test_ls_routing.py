@@ -23,7 +23,7 @@ class _Harness:
         self._ls_snapshot_id = ""
         self.backend = type(
             "Backend", (), {"repo_location": lambda self: "rclone:onedrive:packrat"}
-        )()()
+        )()
 
     def _on_files_ready(self, nodes):
         return MethodType(MainWindow._on_files_ready, self)(nodes)
