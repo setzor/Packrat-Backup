@@ -122,3 +122,12 @@ def test_change_detection_defaults_and_persistence(qapp):
     assert s2.change_detection is False
     assert s2.changed_files_threshold == 60
     assert s2.last_change_status == "suspicious"
+
+
+def test_precache_default_and_persistence(qapp):
+    s = Settings()
+    assert s.precache_snapshots is True
+    s.precache_snapshots = False
+    s.save()
+    s2 = Settings()
+    assert s2.precache_snapshots is False

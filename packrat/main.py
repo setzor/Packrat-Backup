@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         self._snapshots_loaded_at: Optional[_dt.datetime] = None
         self._snapshots_loaded_after_backup: str = ""
         self._verify_pending: bool = False
+        self._precache_snapshot_id: str = ""
         self._cleanup_after_stop: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
@@ -308,6 +309,7 @@ class MainWindow(QMainWindow):
         self.settings.verify_after_backup = data["verify_after_backup"]
         self.settings.change_detection = data["change_detection"]
         self.settings.changed_files_threshold = data["changed_files_threshold"]
+        self.settings.precache_snapshots = data["precache_snapshots"]
         self.settings.save()
         update_autostart(self.settings.run_at_startup)
 
@@ -603,6 +605,7 @@ class MainWindow(QMainWindow):
     def _maybe_start_verification(self) -> None:
         """Run the post-backup restorability proof once nothing else is running (#28)."""
         if not self._verify_pending:
+            self._maybe_precache_snapshot()
             return
         self._verify_pending = False
         if self.job.is_running() or self.backend.is_busy():
@@ -616,6 +619,7 @@ class MainWindow(QMainWindow):
         except (BackendError, ResticProcessError) as exc:
             log.warning("Could not verify backup: %s", exc)
             self.tray.set_state(running=False, status_text="Packrat Backup")
+            self._maybe_precache_snapshot()
 
     def _on_verify_finished(self, success: bool, message: str) -> None:
         self.settings.last_verified_time = _dt.datetime.now().isoformat(timespec="seconds")
@@ -629,6 +633,7 @@ class MainWindow(QMainWindow):
             self.settings.last_verified_time,
             snapshot_id=self.settings.last_verified_snapshot_id,
         )
+        self._maybe_precache_snapshot()
         self.history_page.refresh()
         self.tray.set_state(running=False, status_text="Packrat Backup")
         self._refresh_overview()
@@ -659,6 +664,8 @@ class MainWindow(QMainWindow):
         elif operation == "ls" and not success:
             if self._browser is not None:
                 self._browser.set_error(f"Could not list snapshot contents: {message}")
+            else:
+                self._precache_snapshot_id = ""
 
     def _on_browse_snapshot(self, snapshot_id: str, snapshot_time: str) -> None:
         if self.backend.is_busy():
@@ -705,6 +712,35 @@ class MainWindow(QMainWindow):
             self._browser.set_nodes(nodes)
             self._browser.set_refresh_available(False)
             save_cached_nodes(self.backend.repo_location(), self._browser.snapshot_id(), nodes)
+        elif self._precache_snapshot_id:
+            snapshot_id = self._precache_snapshot_id
+            self._precache_snapshot_id = ""
+            save_cached_nodes(self.backend.repo_location(), snapshot_id, nodes)
+
+    def _maybe_precache_snapshot(self) -> None:
+        """List the newest snapshot in the background so the first browse is instant (#81).
+
+        Runs after the post-backup work (prune, verification) has settled;
+        restic's local cache is still warm from the backup, so the listing
+        is cheap compared to a cold browse.
+        """
+        if not self.settings.precache_snapshots:
+            return
+        snapshot_id = self.backend.last_snapshot_id
+        if not snapshot_id or self.backend.is_busy():
+            return
+        if not self.backend.has_password():
+            return
+        try:
+            if load_cached_nodes(self.backend.repo_location(), snapshot_id) is not None:
+                return
+        except BackendError:
+            return
+        self._precache_snapshot_id = snapshot_id
+        try:
+            self.backend.list_snapshot_files(snapshot_id)
+        except (BackendError, ResticProcessError):
+            self._precache_snapshot_id = ""
 
     def _on_browser_closed(self) -> None:
         sender = self.sender()
