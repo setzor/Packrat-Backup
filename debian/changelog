@@ -1,3 +1,11 @@
+packrat (0.3.1-1) unstable; urgency=medium
+
+  * Add a Size column to the Restore page snapshots grid (PR #91)
+  * Fix snapshot-contents cache never hitting by matching short and full snapshot ids (PR #90)
+  * Rename application ID to io.github.setzor.PackratBackup (PR #89)
+
+ -- Packrat Backup contributors <setzor@users.noreply.github.com>  Sun, 11 Oct 2026 00:00:00 +0200
+
 packrat (0.3.0-1) unstable; urgency=medium
 
   * Add snapshot contents cache: repeat and pre-cached snapshot browsing is instant (issue #81)
