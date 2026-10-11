@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.3.0
+Version:        0.3.1
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,10 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 
 
 %changelog
+* Sun Oct 11 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.1-1
+- Add a Size column to the Restore page snapshots grid (PR #91)
+- Fix snapshot-contents cache never hitting by matching short and full snapshot ids (PR #90)
+- Rename application ID to io.github.setzor.PackratBackup (PR #89)
 * Sat Oct 10 2026 Packrat Backup contributors <noreply@github.com> - 0.3.0-1
 - Add snapshot contents cache: repeat and pre-cached snapshot browsing is instant (issue #81)
 - Add background pre-caching of new snapshot contents after each backup, with a Preferences toggle
