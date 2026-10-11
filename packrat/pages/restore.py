@@ -22,6 +22,17 @@ from PyQt6.QtWidgets import (
 )
 
 from ..humanize import format_snapshot_time
+from ..restic import _human_size
+
+
+def _size_text(snapshot: dict) -> str:
+    """Human size of a snapshot's contents, if restic recorded it."""
+    summary = snapshot.get("summary") or {}
+    try:
+        size = int(summary.get("total_bytes_processed"))
+    except (TypeError, ValueError):
+        return "unknown"
+    return _human_size(size)
 
 
 def _folders_text(snapshot: dict) -> str:
@@ -70,12 +81,13 @@ class RestorePage(QWidget):
 
         snapshots_box = QGroupBox("Available snapshots")
         snapshots_layout = QVBoxLayout(snapshots_box)
-        self._table = QTableWidget(0, 3)
-        self._table.setHorizontalHeaderLabels(["When", "Folders backed up", "ID"])
+        self._table = QTableWidget(0, 4)
+        self._table.setHorizontalHeaderLabels(["When", "Folders backed up", "Size", "ID"])
         header = self._table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -166,7 +178,7 @@ class RestorePage(QWidget):
         row = self._table.currentRow()
         if row < 0:
             return
-        item = self._table.item(row, 2)
+        item = self._table.item(row, 3)
         time_item = self._table.item(row, 0)
         if item is None:
             return
@@ -176,7 +188,7 @@ class RestorePage(QWidget):
         row = self._table.currentRow()
         if row < 0:
             return
-        item = self._table.item(row, 2)
+        item = self._table.item(row, 3)
         if item is None:
             return
         self.restore_requested.emit(item.text(), self._target_edit.text().strip())
@@ -193,7 +205,8 @@ class RestorePage(QWidget):
                 row, 0, QTableWidgetItem(format_snapshot_time(str(snapshot.get("time", ""))))
             )
             self._table.setItem(row, 1, QTableWidgetItem(_folders_text(snapshot)))
-            self._table.setItem(row, 2, QTableWidgetItem(str(snapshot.get("short_id", ""))))
+            self._table.setItem(row, 2, QTableWidgetItem(_size_text(snapshot)))
+            self._table.setItem(row, 3, QTableWidgetItem(str(snapshot.get("short_id", ""))))
 
     def set_enabled_state(self, running: bool) -> None:
         self._restore_button.setEnabled(not running)
