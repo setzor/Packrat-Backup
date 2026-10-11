@@ -45,11 +45,22 @@ def main(argv=None) -> int:
     app.setWindowIcon(QIcon(str(files("packrat").joinpath("assets", "packrat-mascot.svg"))))
     app.setQuitOnLastWindowClosed(False)
 
+    from .single_instance import SingleInstance
+
+    guard = SingleInstance()
+    if not guard.acquire():
+        guard.notify_running()
+        return 0
+
     settings = Settings()
     window = MainWindow(settings)
+    guard._on_activate = window.show_and_raise
     if not args.tray:
         window.show()
-    return app.exec()
+    try:
+        return app.exec()
+    finally:
+        guard.release()
 
 
 if __name__ == "__main__":
