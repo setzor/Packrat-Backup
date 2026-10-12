@@ -44,17 +44,20 @@ class SingleInstance:
     def acquire(self) -> bool:
         """Try to become the single instance; True if this process owns it."""
         self.release()
-        self._server = QLocalServer()
-        if self._server.listen(self._key):
-            self._server.newConnection.connect(self._on_new_connection)
-            return True
-        # A crashed run can leave its socket file behind; clear it and retry.
+        probe = QLocalSocket()
+        probe.connectToServer(self._key)
+        if probe.waitForConnected(300):
+            probe.abort()
+            return False
+        # Nobody answered: either no socket file or a stale one from a
+        # crashed run. Clear it (safe now) and take the lock.
         QLocalServer.removeServer(self._key)
-        if self._server.listen(self._key):
-            self._server.newConnection.connect(self._on_new_connection)
-            return True
-        self.release()
-        return False
+        self._server = QLocalServer()
+        if not self._server.listen(self._key):
+            self.release()
+            return False
+        self._server.newConnection.connect(self._on_new_connection)
+        return True
 
     def notify_running(self) -> bool:
         """Ask the existing instance to show its window. True if it answered."""

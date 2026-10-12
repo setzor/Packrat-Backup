@@ -2,8 +2,6 @@ import pytest
 
 pytest.importorskip("PyQt6")
 
-from PyQt6.QtNetwork import QLocalSocket  # noqa: E402
-
 from packrat.single_instance import SingleInstance, default_key  # noqa: E402
 
 KEY = default_key()
