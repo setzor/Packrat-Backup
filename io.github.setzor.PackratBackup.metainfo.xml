@@ -30,6 +30,9 @@
   </branding>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.2" date="2026-10-20">
+      <description><p>Scheduling release: backups can now run every hour or at a custom interval (every N hours or N days from a chosen start time), and optional guards defer automatic backups while the machine is on battery or on a metered network connection — the backup starts automatically once power or an unmetered network returns. Also new: launching Packrat activates the already-running tray app instead of spawning a second process, and clicking the tray icon opens the window again.</p></description>
+    </release>
     <release version="0.3.1" date="2026-10-11">
       <description><p>Maintenance release: the Restore page now shows a Size column in the snapshots grid, the snapshot-contents cache actually hits again (short and full snapshot ids are both matched), and the application ID is renamed to io.github.setzor.PackratBackup.</p></description>
     </release>
