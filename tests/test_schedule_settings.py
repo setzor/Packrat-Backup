@@ -37,5 +37,7 @@ def test_interval_settings_clamps_bad_values(qapp):
 def test_schedule_summary_new_modes():
     assert schedule_summary(ScheduleMode.HOURLY, "12:00", []) == "Hourly"
     assert schedule_summary(ScheduleMode.INTERVAL, "12:00", [], interval_hours=6) == "Every 6 hours"
-    assert schedule_summary(ScheduleMode.INTERVAL, "12:00", [], interval_hours=48) == "Every 2 day(s)"
+    assert (
+        schedule_summary(ScheduleMode.INTERVAL, "12:00", [], interval_hours=48) == "Every 2 day(s)"
+    )
     assert schedule_summary(ScheduleMode.INTERVAL, "12:00", []) == "Every 6 hours"

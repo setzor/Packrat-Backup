@@ -173,12 +173,8 @@ class MainWindow(QMainWindow):
         else:
             self._apply_password_from_store()
         self.scheduler.set_paused(self.settings.schedule_paused)
-        self.scheduler.set_guards(
-            self.settings.skip_on_battery, self.settings.skip_on_metered
-        )
-        self.scheduler.set_busy_check(
-            lambda: self.job.is_running() or self.backend.is_busy()
-        )
+        self.scheduler.set_guards(self.settings.skip_on_battery, self.settings.skip_on_metered)
+        self.scheduler.set_busy_check(lambda: self.job.is_running() or self.backend.is_busy())
         self.scheduler.start()
         update_autostart(self.settings.run_at_startup)
         self._run_missed_backup_catchup()
@@ -308,9 +304,7 @@ class MainWindow(QMainWindow):
         self.settings.save()
         self.scheduler.set_paused(self.settings.schedule_paused)
         self.tray.set_pause_state(self.settings.schedule_paused)
-        self.scheduler.set_guards(
-            self.settings.skip_on_battery, self.settings.skip_on_metered
-        )
+        self.scheduler.set_guards(self.settings.skip_on_battery, self.settings.skip_on_metered)
         self.scheduler.recompute()
         self._refresh_overview()
 
@@ -1107,7 +1101,11 @@ class MainWindow(QMainWindow):
             status_text=(
                 "Backup running…"
                 if running
-                else ("Backup deferred (guard active)" if self.scheduler.is_deferred() else "Packrat Backup")
+                else (
+                    "Backup deferred (guard active)"
+                    if self.scheduler.is_deferred()
+                    else "Packrat Backup"
+                )
             ),
         )
 

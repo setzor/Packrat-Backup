@@ -58,13 +58,17 @@ def test_interval_daily_hours():
 
 def test_interval_previous_run():
     now = dt.datetime(2026, 10, 12, 13, 0)
-    prev = previous_run_time(_cfg(ScheduleMode.INTERVAL, interval_hours=6, interval_start="12:00"), now)
+    prev = previous_run_time(
+        _cfg(ScheduleMode.INTERVAL, interval_hours=6, interval_start="12:00"), now
+    )
     assert prev == dt.datetime(2026, 10, 12, 12, 0)
 
 
 def test_interval_previous_run_before_anchor():
     now = dt.datetime(2026, 10, 12, 9, 0)
-    prev = previous_run_time(_cfg(ScheduleMode.INTERVAL, interval_hours=6, interval_start="12:00"), now)
+    prev = previous_run_time(
+        _cfg(ScheduleMode.INTERVAL, interval_hours=6, interval_start="12:00"), now
+    )
     assert prev == dt.datetime(2026, 10, 12, 6, 0)
 
 

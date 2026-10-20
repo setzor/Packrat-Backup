@@ -24,9 +24,7 @@ def next_run_time(
         return None
     now = now or _dt.datetime.now()
     if cfg.mode is ScheduleMode.HOURLY:
-        return (now + _dt.timedelta(hours=1)).replace(
-            minute=0, second=0, microsecond=0
-        )
+        return (now + _dt.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
     if cfg.mode is ScheduleMode.INTERVAL:
         hours = max(1, int(getattr(cfg, "interval_hours", 6) or 6))
         hour, minute = _parse_time(getattr(cfg, "interval_start", "12:00"))
