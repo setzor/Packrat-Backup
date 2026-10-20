@@ -76,5 +76,9 @@ def test_version_resolver_skips_non_version_dirs(monkeypatch, tmp_path):
     # which callers translate to the dev marker.
     from importlib.metadata import PackageNotFoundError
 
+    def _not_found(name):
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr(packrat, "_pkg_version", _not_found)
     with pytest.raises(PackageNotFoundError):
         packrat._version_from_metadata()
