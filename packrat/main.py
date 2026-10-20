@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self._verify_pending: bool = False
         self._ls_snapshot_id: str = ""
         self._cleanup_after_stop: bool = False
+        self._quitting: bool = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -1129,6 +1130,12 @@ class MainWindow(QMainWindow):
                 app.quit()
 
     def _handle_close(self, event) -> None:
+        if self._quitting:
+            # Quit was requested (tray menu Quit or similar): the window
+            # close event is just app.quit() unwinding - do not hide to
+            # tray and do not claim the app keeps running.
+            event.accept()
+            return
         if not self.settings.close_to_tray:
             self._quit_app(event)
             return
@@ -1154,6 +1161,7 @@ class MainWindow(QMainWindow):
                 return
         if event is not None:
             event.accept()
+        self._quitting = True
         app = QApplication.instance()
         if app is not None:
             app.quit()
