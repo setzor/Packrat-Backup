@@ -6,7 +6,7 @@ import logging
 from importlib.resources import files
 from typing import Optional
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QTime, pyqtSignal
 from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
 
@@ -53,10 +53,22 @@ class TrayController(QObject):
         self.icon.activated.connect(self._on_activated)
         self._menu = menu
         self._quit_handlers = []
+        self._last_open = QTime()
 
     def _on_activated(self, reason) -> None:
-        if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
-            self.open_requested.emit()
+        # Open on single click: on X11 most trays do not emit DoubleClick,
+        # so Trigger is the natural "activate the app" gesture. DoubleClick
+        # is still honoured where it exists (Wayland/macOS); the elapsed
+        # check collapses the Trigger+DoubleClick pair of one gesture.
+        if reason not in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            return
+        if self._last_open.isValid() and self._last_open.msecsTo(QTime.currentTime()) < 500:
+            return
+        self._last_open = QTime.currentTime()
+        self.open_requested.emit()
 
     def _on_quit(self) -> None:
         for handler in self._quit_handlers:
