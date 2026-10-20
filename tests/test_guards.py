@@ -1,8 +1,6 @@
 import subprocess
 
-import pytest
-
-from packrat.guards import GuardBlock, check_guards, on_battery, on_metered_connection, _run
+from packrat.guards import GuardBlock, _run, check_guards, on_battery, on_metered_connection
 
 
 def test_run_missing_command_returns_none():

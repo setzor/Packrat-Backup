@@ -1,7 +1,5 @@
 import datetime as dt
 
-import pytest
-
 from packrat.scheduler import Scheduler, next_run_time, previous_run_time
 from packrat.settings import ScheduleConfig, ScheduleMode
 

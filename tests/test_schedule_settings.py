@@ -1,5 +1,5 @@
 from packrat.humanize import schedule_summary
-from packrat.settings import ScheduleConfig, ScheduleMode, Settings
+from packrat.settings import ScheduleMode, Settings
 
 
 def test_interval_settings_roundtrip(qapp):
