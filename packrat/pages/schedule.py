@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from PyQt6.QtCore import QSignalBlocker, pyqtSignal
+from PyQt6.QtCore import QSignalBlocker, Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QPushButton,
     QRadioButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -39,9 +40,19 @@ class SchedulePage(QWidget):
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        root = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        content = QWidget()
+        root = QVBoxLayout(content)
         root.setContentsMargins(24, 24, 24, 24)
         root.setSpacing(16)
+        scroll = QScrollArea()
+        scroll.setWidget(content)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        outer.addWidget(scroll)
 
         title = QLabel("When to back up")
         title.setStyleSheet("font-size: 18px; font-weight: 600;")
