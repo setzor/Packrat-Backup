@@ -102,12 +102,22 @@ def backup_status(
     return {"state": "error", "label": "Backup overdue"}
 
 
-def schedule_summary(mode, time_text: str, weekdays) -> str:
+def schedule_summary(mode, time_text: str, weekdays, interval_hours: int = 0) -> str:
     """Short human sentence for the schedule, e.g. 'Daily at 12:00'."""
     from .settings import ScheduleMode
 
     if mode is ScheduleMode.OFF:
         return "Manual backups only"
+    if mode is ScheduleMode.HOURLY:
+        return "Hourly"
+    if mode is ScheduleMode.INTERVAL:
+        try:
+            hours = max(1, int(interval_hours or 6))
+        except (TypeError, ValueError):
+            hours = 6
+        if hours % 24 == 0:
+            return f"Every {hours // 24} day(s)"
+        return f"Every {hours} hours"
     if mode is ScheduleMode.DAILY:
         return f"Daily at {time_text}"
     names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]

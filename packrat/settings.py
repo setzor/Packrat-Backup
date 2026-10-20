@@ -15,8 +15,10 @@ from .paths import config_dir
 
 class ScheduleMode(Enum):
     OFF = "off"
+    HOURLY = "hourly"
     DAILY = "daily"
     WEEKLY = "weekly"
+    INTERVAL = "interval"
 
 
 class Backend(Enum):
@@ -39,6 +41,8 @@ class ScheduleConfig:
     mode: ScheduleMode = ScheduleMode.OFF
     time: str = "12:00"
     weekdays: List[int] = field(default_factory=lambda: [1])
+    interval_hours: int = 6
+    interval_start: str = "12:00"
 
 
 class Settings:
@@ -60,6 +64,8 @@ class Settings:
         "schedule_mode",
         "schedule_time",
         "schedule_weekdays",
+        "schedule_interval_hours",
+        "schedule_interval_start",
         "last_backup_time",
         "next_backup_time",
         "keep_hourly",
@@ -69,6 +75,8 @@ class Settings:
         "keep_yearly",
         "keep_within",
         "schedule_paused",
+        "skip_on_battery",
+        "skip_on_metered",
         "auto_prune",
         "restore_refresh_minutes",
         "verify_after_backup",
@@ -108,6 +116,8 @@ class Settings:
         self.keep_yearly: int = 3
         self.keep_within: str = "1m"
         self.schedule_paused: bool = False
+        self.skip_on_battery: bool = False
+        self.skip_on_metered: bool = False
         self.auto_prune: bool = True
         self.restore_refresh_minutes: int = 60
         self.verify_after_backup: str = "sample"
@@ -174,6 +184,12 @@ class Settings:
             self.schedule.mode = ScheduleMode.OFF
         self.schedule.time = s.value("schedule_time", "12:00", type=str)
         self.schedule.weekdays = _decode_int_list(s.value("schedule_weekdays", "1"))
+        self.schedule.interval_hours = self._load_interval(
+            s.value("schedule_interval_hours", 6, type=int)
+        )
+        if self.schedule.interval_hours > 24 * 30:
+            self.schedule.interval_hours = 24 * 30
+        self.schedule.interval_start = s.value("schedule_interval_start", "12:00", type=str)
         self.last_backup_time = s.value("last_backup_time", "", type=str)
         self.next_backup_time = s.value("next_backup_time", "", type=str)
         self.keep_hourly = s.value("keep_hourly", 0, type=int)
@@ -183,6 +199,8 @@ class Settings:
         self.keep_yearly = s.value("keep_yearly", 3, type=int)
         self.keep_within = s.value("keep_within", "1m", type=str)
         self.schedule_paused = to_bool(s.value("schedule_paused", False, type=bool))
+        self.skip_on_battery = to_bool(s.value("skip_on_battery", False, type=bool))
+        self.skip_on_metered = to_bool(s.value("skip_on_metered", False, type=bool))
         self.auto_prune = to_bool(s.value("auto_prune", True, type=bool))
         self.auto_prune_interval_days = self._load_interval(
             s.value("auto_prune_interval_days", 7, type=int)
@@ -220,6 +238,8 @@ class Settings:
         s.setValue("schedule_mode", self.schedule.mode.value)
         s.setValue("schedule_time", self.schedule.time)
         s.setValue("schedule_weekdays", _encode_list(self.schedule.weekdays))
+        s.setValue("schedule_interval_hours", self.schedule.interval_hours)
+        s.setValue("schedule_interval_start", self.schedule.interval_start)
         s.setValue("last_backup_time", self.last_backup_time)
         s.setValue("next_backup_time", self.next_backup_time)
         s.setValue("keep_hourly", self.keep_hourly)
@@ -229,6 +249,8 @@ class Settings:
         s.setValue("keep_yearly", self.keep_yearly)
         s.setValue("keep_within", self.keep_within)
         s.setValue("schedule_paused", self.schedule_paused)
+        s.setValue("skip_on_battery", self.skip_on_battery)
+        s.setValue("skip_on_metered", self.skip_on_metered)
         s.setValue("auto_prune", self.auto_prune)
         s.setValue("auto_prune_interval_days", self.auto_prune_interval_days)
         s.setValue("restore_refresh_minutes", self.restore_refresh_minutes)

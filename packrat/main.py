@@ -152,6 +152,7 @@ class MainWindow(QMainWindow):
         self.backend.verify_finished.connect(self._on_verify_finished)
         self.backend.operation_finished.connect(self._on_operation_finished)
         self.scheduler.backup_due.connect(self.start_backup)
+        self.scheduler.deferred_changed.connect(lambda *_: self._refresh_overview())
 
         self.tray = TrayController(self)
         self.tray.open_requested.connect(self.show_and_raise)
@@ -172,6 +173,8 @@ class MainWindow(QMainWindow):
         else:
             self._apply_password_from_store()
         self.scheduler.set_paused(self.settings.schedule_paused)
+        self.scheduler.set_guards(self.settings.skip_on_battery, self.settings.skip_on_metered)
+        self.scheduler.set_busy_check(lambda: self.job.is_running() or self.backend.is_busy())
         self.scheduler.start()
         update_autostart(self.settings.run_at_startup)
         self._run_missed_backup_catchup()
@@ -287,7 +290,11 @@ class MainWindow(QMainWindow):
         self.settings.schedule.mode = data["mode"]
         self.settings.schedule.time = data["time"]
         self.settings.schedule.weekdays = data["weekdays"]
+        self.settings.schedule.interval_hours = data["interval_hours"]
+        self.settings.schedule.interval_start = data["interval_start"]
         self.settings.schedule_paused = data["paused"]
+        self.settings.skip_on_battery = data["skip_on_battery"]
+        self.settings.skip_on_metered = data["skip_on_metered"]
         self.settings.keep_daily = data["keep_daily"]
         self.settings.keep_weekly = data["keep_weekly"]
         self.settings.keep_monthly = data["keep_monthly"]
@@ -297,6 +304,7 @@ class MainWindow(QMainWindow):
         self.settings.save()
         self.scheduler.set_paused(self.settings.schedule_paused)
         self.tray.set_pause_state(self.settings.schedule_paused)
+        self.scheduler.set_guards(self.settings.skip_on_battery, self.settings.skip_on_metered)
         self.scheduler.recompute()
         self._refresh_overview()
 
@@ -1041,11 +1049,17 @@ class MainWindow(QMainWindow):
                 last_dt = None
         last_text = describe_past(last_dt)
         nxt = next_run_time(self.settings.schedule)
-        next_text = describe_future(nxt) if not running else "—"
+        if running:
+            next_text = "—"
+        elif self.scheduler.is_deferred():
+            next_text = "due — waiting for power/network"
+        else:
+            next_text = describe_future(nxt)
         schedule_text = schedule_summary(
             self.settings.schedule.mode,
             self.settings.schedule.time,
             self.settings.schedule.weekdays,
+            interval_hours=self.settings.schedule.interval_hours,
         )
         try:
             destination = self.settings.backend_summary()
@@ -1084,7 +1098,15 @@ class MainWindow(QMainWindow):
         self.tray.set_state(
             running=running,
             paused=self.scheduler.is_paused(),
-            status_text="Backup running…" if running else "Packrat Backup",
+            status_text=(
+                "Backup running…"
+                if running
+                else (
+                    "Backup deferred (guard active)"
+                    if self.scheduler.is_deferred()
+                    else "Packrat Backup"
+                )
+            ),
         )
 
     def show_and_raise(self) -> None:
