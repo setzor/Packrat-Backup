@@ -59,13 +59,37 @@ class SchedulePage(QWidget):
         mode_box = QGroupBox("Backup frequency")
         mode_layout = QVBoxLayout(mode_box)
         self._off_radio = QRadioButton("Manually only")
+        self._hourly_radio = QRadioButton("Every hour")
         self._daily_radio = QRadioButton("Every day")
         self._weekly_radio = QRadioButton("Every week")
+        self._interval_radio = QRadioButton("Custom interval")
         self._group = QButtonGroup(self)
-        for radio in (self._off_radio, self._daily_radio, self._weekly_radio):
+        for radio in (
+            self._off_radio,
+            self._hourly_radio,
+            self._daily_radio,
+            self._weekly_radio,
+            self._interval_radio,
+        ):
             self._group.addButton(radio)
             radio.toggled.connect(self._on_mode_changed)
             mode_layout.addWidget(radio)
+        interval_row = QHBoxLayout()
+        self._interval_spin = QSpinBox()
+        self._interval_spin.setRange(1, 24 * 30)
+        self._interval_spin.setSuffix(" hours")
+        self._interval_spin.setMinimumWidth(110)
+        self._interval_spin.valueChanged.connect(self.changed.emit)
+        self._interval_unit = QComboBox()
+        self._interval_unit.addItem("hours", 1)
+        self._interval_unit.addItem("days", 24)
+        self._interval_unit.currentIndexChanged.connect(self._on_interval_unit)
+        self._interval_unit.currentIndexChanged.connect(self.changed.emit)
+        interval_row.addWidget(QLabel("    Run every:"))
+        interval_row.addWidget(self._interval_spin)
+        interval_row.addWidget(self._interval_unit)
+        interval_row.addStretch(1)
+        mode_layout.addLayout(interval_row)
         root.addWidget(mode_box)
 
         time_box = QGroupBox("Time")
@@ -79,6 +103,35 @@ class SchedulePage(QWidget):
         time_layout.addWidget(self._time_combo)
         time_layout.addStretch(1)
         root.addWidget(time_box)
+
+        interval_time_box = QGroupBox("First run of a custom interval")
+        interval_time_layout = QHBoxLayout(interval_time_box)
+        interval_time_layout.addWidget(QLabel("Count the interval from:"))
+        self._interval_start_combo = QComboBox()
+        for hour in range(24):
+            self._interval_start_combo.addItem(f"{hour:02d}:00")
+        self._interval_start_combo.currentTextChanged.connect(self.changed.emit)
+        interval_time_layout.addWidget(self._interval_start_combo)
+        interval_time_layout.addStretch(1)
+        root.addWidget(interval_time_box)
+
+        guards_box = QGroupBox("Skip automatic backups when…")
+        guards_layout = QVBoxLayout(guards_box)
+        self._battery_check = QCheckBox("Running on battery power")
+        self._battery_check.setToolTip(
+            "Wait until the machine is plugged in. The backup starts\n"
+            "automatically once power returns; it is delayed, not skipped."
+        )
+        self._battery_check.toggled.connect(self.changed.emit)
+        self._metered_check = QCheckBox("Connected to a metered network (e.g. mobile data)")
+        self._metered_check.setToolTip(
+            "Wait until the connection is no longer metered. The backup\n"
+            "starts automatically once you are back on an unmetered network."
+        )
+        self._metered_check.toggled.connect(self.changed.emit)
+        guards_layout.addWidget(self._battery_check)
+        guards_layout.addWidget(self._metered_check)
+        root.addWidget(guards_box)
 
         days_box = QGroupBox("Days of the week (weekly mode)")
         days_layout = QHBoxLayout(days_box)
@@ -174,11 +227,23 @@ class SchedulePage(QWidget):
         root.addStretch(1)
 
     def _on_mode_changed(self) -> None:
+        self._update_mode_widgets()
+        self._apply_pause_state()
+        self.changed.emit()
+
+    def _on_interval_unit(self) -> None:
+        in_hours = self._interval_unit.currentData() == 1
+        self._interval_spin.setRange(1, 24 * 30 if in_hours else 30)
+        self._interval_spin.setSuffix(" hours" if in_hours else " days")
+
+    def _update_mode_widgets(self) -> None:
         weekly = self._weekly_radio.isChecked()
         for check, _value in self._day_checks:
             check.setEnabled(weekly)
-        self._apply_pause_state()
-        self.changed.emit()
+        interval = self._interval_radio.isChecked()
+        self._interval_spin.setEnabled(interval)
+        self._interval_unit.setEnabled(interval)
+        self._interval_start_combo.setEnabled(interval)
 
     def _on_pause_toggled(self, checked: bool) -> None:
         self._apply_pause_state()
@@ -190,13 +255,27 @@ class SchedulePage(QWidget):
         weekly = self._weekly_radio.isChecked()
         for check, _value in self._day_checks:
             check.setEnabled(not paused and weekly)
+        interval = self._interval_radio.isChecked()
+        self._interval_spin.setEnabled(not paused and interval)
+        self._interval_unit.setEnabled(not paused and interval)
+        self._interval_start_combo.setEnabled(not paused and interval)
 
     def set_cleaning(self, cleaning: bool) -> None:
         self._clean_now_button.setText("Cleaning…" if cleaning else "Clean Up Now")
         self._clean_now_button.setEnabled(not cleaning)
 
     def _schedule_widgets(self):
-        widgets = [self._off_radio, self._daily_radio, self._weekly_radio, self._time_combo]
+        widgets = [
+            self._off_radio,
+            self._hourly_radio,
+            self._daily_radio,
+            self._weekly_radio,
+            self._interval_radio,
+            self._time_combo,
+            self._interval_spin,
+            self._interval_unit,
+            self._interval_start_combo,
+        ]
         widgets.extend(check for check, _value in self._day_checks)
         return widgets
 
@@ -219,40 +298,81 @@ class SchedulePage(QWidget):
             self._auto_prune_interval_spin.blockSignals(True)
             self._auto_prune_interval_spin.setValue(int(settings.auto_prune_interval_days))
             self._auto_prune_interval_spin.blockSignals(False)
+        if settings is not None:
+            self._battery_check.blockSignals(True)
+            self._battery_check.setChecked(bool(settings.skip_on_battery))
+            self._battery_check.blockSignals(False)
+            self._metered_check.blockSignals(True)
+            self._metered_check.setChecked(bool(settings.skip_on_metered))
+            self._metered_check.blockSignals(False)
         self._pause_check.blockSignals(True)
         self._pause_check.setChecked(bool(paused))
         self._pause_check.blockSignals(False)
         if schedule_cfg.mode is ScheduleMode.OFF:
             self._off_radio.setChecked(True)
+        elif schedule_cfg.mode is ScheduleMode.HOURLY:
+            self._hourly_radio.setChecked(True)
         elif schedule_cfg.mode is ScheduleMode.DAILY:
             self._daily_radio.setChecked(True)
+        elif schedule_cfg.mode is ScheduleMode.INTERVAL:
+            self._interval_radio.setChecked(True)
         else:
             self._weekly_radio.setChecked(True)
         index = self._time_combo.findText(schedule_cfg.time)
         self._time_combo.setCurrentIndex(index if index >= 0 else 24)
+        hours = int(getattr(schedule_cfg, "interval_hours", 6) or 6)
+        start = getattr(schedule_cfg, "interval_start", "12:00") or "12:00"
+        self._interval_spin.blockSignals(True)
+        if hours % 24 == 0 and hours >= 24:
+            self._interval_unit.setCurrentIndex(1)
+            self._interval_spin.setValue(hours // 24)
+        else:
+            self._interval_unit.setCurrentIndex(0)
+            self._interval_spin.setValue(max(1, hours))
+        self._interval_spin.blockSignals(False)
+        self._on_interval_unit()
+        start_index = self._interval_start_combo.findText(start)
+        self._interval_start_combo.setCurrentIndex(start_index if start_index >= 0 else 12)
         for check, value in self._day_checks:
             check.setChecked(value in schedule_cfg.weekdays)
         for blocker in blockers:
             blocker.unblock()
+        self._update_mode_widgets()
         self._apply_pause_state()
 
     def _blocked_widgets(self):
-        widgets = [self._schedule_widgets()]
-        return widgets[0]
+        widgets = self._schedule_widgets()
+        widgets.extend(
+            (
+                self._pause_check,
+                self._battery_check,
+                self._metered_check,
+            )
+        )
+        return widgets
 
     def save(self):
         if self._off_radio.isChecked():
             mode = ScheduleMode.OFF
+        elif self._hourly_radio.isChecked():
+            mode = ScheduleMode.HOURLY
         elif self._daily_radio.isChecked():
             mode = ScheduleMode.DAILY
+        elif self._interval_radio.isChecked():
+            mode = ScheduleMode.INTERVAL
         else:
             mode = ScheduleMode.WEEKLY
+        interval_hours = self._interval_spin.value() * self._interval_unit.currentData()
         weekdays = [value for check, value in self._day_checks if check.isChecked()]
         return {
             "mode": mode,
             "time": self._time_combo.currentText(),
             "weekdays": weekdays or [1],
+            "interval_hours": interval_hours,
+            "interval_start": self._interval_start_combo.currentText(),
             "paused": self._pause_check.isChecked(),
+            "skip_on_battery": self._battery_check.isChecked(),
+            "skip_on_metered": self._metered_check.isChecked(),
             "keep_daily": self._keep_daily_spin.value(),
             "keep_weekly": self._keep_weekly_spin.value(),
             "keep_monthly": self._keep_monthly_spin.value(),
