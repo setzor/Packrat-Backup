@@ -49,7 +49,7 @@ class AboutPage(QWidget):
 
         restic = find_tool("restic")
         rclone = find_tool("rclone")
-        info = QTextBrowser()
+        self._info = info = QTextBrowser()
         info.setOpenExternalLinks(True)
         info.setHtml(
             "<p><b>Packrat Backup</b> " + __version__ + "</p>"
