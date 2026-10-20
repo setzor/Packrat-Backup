@@ -30,6 +30,9 @@
   </branding>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.3" date="2026-10-20">
+      <description><p>Bug-fix release: the main window can be resized freely again — the Schedule page options added in 0.3.2 no longer lock the window's minimum height, and instead scroll when the window is small.</p></description>
+    </release>
     <release version="0.3.2" date="2026-10-20">
       <description><p>Scheduling release: backups can now run every hour or at a custom interval (every N hours or N days from a chosen start time), and optional guards defer automatic backups while the machine is on battery or on a metered network connection — the backup starts automatically once power or an unmetered network returns. Also new: launching Packrat activates the already-running tray app instead of spawning a second process, and clicking the tray icon opens the window again.</p></description>
     </release>
