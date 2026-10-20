@@ -30,6 +30,9 @@
   </branding>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.3.4" date="2026-10-20">
+      <description><p>Bug-fix release: the About page now shows the correct version (read from the installed package instead of a stale hardcoded string), and quitting Packrat completely from the tray menu no longer shows a wrong "keeps running in the tray" notification on the way out.</p></description>
+    </release>
     <release version="0.3.3" date="2026-10-20">
       <description><p>Bug-fix release: the main window can be resized freely again — the Schedule page options added in 0.3.2 no longer lock the window's minimum height, and instead scroll when the window is small.</p></description>
     </release>

@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.3.3
+Version:        0.3.4
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,9 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 
 
 %changelog
+* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.4-1
+- Fix the About page showing a stale version; it now reads the installed package version (PR #100)
+- Fix the wrong "keeps running in the tray" notification when quitting from the tray menu (PR #101)
 * Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.3-1
 - Fix the main window unable to resize smaller after the 0.3.2 schedule additions (PR #97)
 - Schedule page options are now scrollable when the window is small (PR #97)

@@ -1,3 +1,10 @@
+packrat (0.3.4-1) unstable; urgency=medium
+
+  * Fix the About page showing a stale version; it now reads the installed package version (PR #100)
+  * Fix the wrong "keeps running in the tray" notification when quitting from the tray menu (PR #101)
+
+ -- Packrat Backup contributors <setzor@users.noreply.github.com>  Mon, 20 Oct 2026 14:00:00 +0200
+
 packrat (0.3.3-1) unstable; urgency=medium
 
   * Fix the main window unable to resize smaller after the 0.3.2 schedule additions (PR #97)
