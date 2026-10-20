@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.3.1
+Version:        0.3.2
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,10 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 
 
 %changelog
+* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.2-1
+- Add hourly and custom-interval schedule modes with battery and metered-network guards (issue #22, PR #94)
+- Add single-instance guard so launcher clicks activate the running tray app (PR #93)
+- Make clicking the tray icon open the window again (PR #95)
 * Sun Oct 11 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.1-1
 - Add a Size column to the Restore page snapshots grid (PR #91)
 - Fix snapshot-contents cache never hitting by matching short and full snapshot ids (PR #90)

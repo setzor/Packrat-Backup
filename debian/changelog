@@ -1,3 +1,11 @@
+packrat (0.3.2-1) unstable; urgency=medium
+
+  * Add hourly and custom-interval schedule modes with battery and metered-network guards (issue #22, PR #94)
+  * Add single-instance guard so launcher clicks activate the running tray app (PR #93)
+  * Make clicking the tray icon open the window again (PR #95)
+
+ -- Packrat Backup contributors <setzor@users.noreply.github.com>  Mon, 20 Oct 2026 00:00:00 +0200
+
 packrat (0.3.1-1) unstable; urgency=medium
 
   * Add a Size column to the Restore page snapshots grid (PR #91)
