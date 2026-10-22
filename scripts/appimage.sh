@@ -74,6 +74,15 @@ find "${PYQT_SITE}" -maxdepth 1 -name '*.so' ! -name 'QtCore*' ! -name 'QtGui*' 
     ! -name 'QtNetwork*' ! -name 'QtWidgets*' ! -name 'sip*' -exec rm -f {} + 2>/dev/null || true
 QT_LIBS="${PYQT_SITE}"/Qt6/lib
 if [ -d "${QT_LIBS}" ]; then
+    # Prune Qt plugins packrat does not use; keep the platform, image
+    # format, icon engine, style and TLS plugins a QtWidgets app needs.
+    PLUGINS="${PYQT_SITE}"/Qt6/plugins
+    if [ -d "${PLUGINS}" ]; then
+        find "${PLUGINS}" -mindepth 1 -maxdepth 1 -type d \
+            ! -name platforms ! -name imageformats ! -name iconengines \
+            ! -name styles ! -name tls ! -name networkinformation \
+            -exec rm -rf {} + 2>/dev/null || true
+    fi
     # Compute the transitive closure of Qt6 libs needed by the four
     # PyQt6 bindings packrat imports, plus the platform plugins.
     rm -f "${QT_LIBS}"/libQt6OpenGL* 2>/dev/null || true
