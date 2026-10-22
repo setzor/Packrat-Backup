@@ -84,11 +84,11 @@ if [ -d "${QT_LIBS}" ]; then
             -exec rm -rf {} + 2>/dev/null || true
     fi
     # Compute the transitive closure of Qt6 libs needed by the four
-    # PyQt6 bindings packrat imports, plus the platform plugins.
-    rm -f "${QT_LIBS}"/libQt6OpenGL* 2>/dev/null || true
+    # PyQt6 bindings packrat imports, the platform plugins and the
+    # iconengines plugin (which needs Qt6Svg).
     KEEP="libQt6Core libQt6Gui libQt6Widgets libQt6Network libQt6DBus \
 libQt6XcbQpa libQt6EglFSDeviceIntegration libQt6EglFsKmsSupport \
-libQt6WaylandClient libQt6WlShellIntegration"
+libQt6WaylandClient libQt6WlShellIntegration libQt6Svg libQt6OpenGL"
     CHANGED=1
     while [ "${CHANGED}" -eq 1 ]; do
         CHANGED=0
