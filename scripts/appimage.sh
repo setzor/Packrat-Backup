@@ -74,15 +74,37 @@ find "${PYQT_SITE}" -maxdepth 1 -name '*.so' ! -name 'QtCore*' ! -name 'QtGui*' 
     ! -name 'QtNetwork*' ! -name 'QtWidgets*' ! -name 'sip*' -exec rm -f {} + 2>/dev/null || true
 QT_LIBS="${PYQT_SITE}"/Qt6/lib
 if [ -d "${QT_LIBS}" ]; then
-    mkdir -p "${BUILD_DIR}"/qt-keep
+    # Compute the transitive closure of Qt6 libs needed by the four
+    # PyQt6 bindings packrat imports, plus the platform plugins.
+    rm -f "${QT_LIBS}"/libQt6OpenGL* 2>/dev/null || true
     KEEP="libQt6Core libQt6Gui libQt6Widgets libQt6Network libQt6DBus \
 libQt6XcbQpa libQt6EglFSDeviceIntegration libQt6EglFsKmsSupport \
-libQt6WaylandClient libQt6WlShellIntegration libQt6WaylandEglClientHwIntegration"
+libQt6WaylandClient libQt6WlShellIntegration"
+    CHANGED=1
+    while [ "${CHANGED}" -eq 1 ]; do
+        CHANGED=0
+        for k in ${KEEP}; do
+            f="${QT_LIBS}"/${k}.so.6
+            [ -f "${f}" ] || continue
+            for dep in $(LD_LIBRARY_PATH="${QT_LIBS}" ldd "${f}" 2>/dev/null | \
+                    awk '/libQt6/ {print $1}' | sort -u); do
+                base=$(basename "${dep}" .so.6 | sed 's/^lib//')
+                case " ${KEEP} " in
+                    *" ${base} "*) ;;
+                    *) if [ -f "${QT_LIBS}/lib${base}.so.6" ]; then
+                           KEEP="${KEEP} ${base}"
+                           CHANGED=1
+                       fi ;;
+                esac
+            done
+        done
+    done
+    mkdir -p "${BUILD_DIR}"/qt-keep
     for k in ${KEEP}; do
         mv "${QT_LIBS}"/${k}.so* "${BUILD_DIR}"/qt-keep/ 2>/dev/null || true
     done
     for f in "${QT_LIBS}"/libicudata.so* "${QT_LIBS}"/libicui18n.so* \
-             "${QT_LIBS}"/libicuuc.so* "${QT_LIBS}"/libicu*.so*; do
+             "${QT_LIBS}"/libicuuc.so*; do
         [ -f "$f" ] && mv "$f" "${BUILD_DIR}"/qt-keep/ 2>/dev/null || true
     done
     rm -rf "${QT_LIBS}"
