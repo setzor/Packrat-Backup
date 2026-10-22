@@ -72,18 +72,22 @@ find "${APPDIR}/usr/lib/python${PYVER}" -maxdepth 1 -name '__pycache__' -type d 
 PYQT_SITE="${APPDIR}/usr/lib/python${PYVER}/site-packages/PyQt6"
 find "${PYQT_SITE}" -maxdepth 1 -name '*.so' ! -name 'QtCore*' ! -name 'QtGui*' \
     ! -name 'QtNetwork*' ! -name 'QtWidgets*' ! -name 'sip*' -exec rm -f {} + 2>/dev/null || true
-for qtdir in "${PYQT_SITE}"/Qt6/lib; do
-    rm -f "${qtdir}"/libQt63D* "${qtdir}"/libQt6Qml* "${qtdir}"/libQt6Quick* \
-          "${qtdir}"/libQt6WebEngine* "${qtdir}"/libQt6WebView* \
-          "${qtdir}"/libQt6Scxml* "${qtdir}"/libQt6Pdf* \
-          "${qtdir}"/libQt6Designer* "${qtdir}"/libQt6Help* \
-          "${qtdir}"/libQt6Test* "${qtdir}"/libQt6Bluetooth* \
-          "${qtdir}"/libQt6Charts* "${qtdir}"/libQt6DataVisualization* \
-          "${qtdir}"/libQt6Multimedia* "${qtdir}"/libQt6Sensors* \
-          "${qtdir}"/libQt6Serial* "${qtdir}"/libQt6Spatial* \
-          "${qtdir}"/libQt6Sql* "${qtdir}"/libQt6TextToSpeech* \
-          "${qtdir}"/libQt6UiTools* 2>/dev/null || true
-done
+QT_LIBS="${PYQT_SITE}"/Qt6/lib
+if [ -d "${QT_LIBS}" ]; then
+    mkdir -p "${BUILD_DIR}"/qt-keep
+    KEEP="libQt6Core libQt6Gui libQt6Widgets libQt6Network libQt6DBus \
+libQt6XcbQpa libQt6EglFSDeviceIntegration libQt6EglFsKmsSupport \
+libQt6WaylandClient libQt6WlShellIntegration libQt6WaylandEglClientHwIntegration"
+    for k in ${KEEP}; do
+        mv "${QT_LIBS}"/${k}.so* "${BUILD_DIR}"/qt-keep/ 2>/dev/null || true
+    done
+    for f in "${QT_LIBS}"/libicudata.so* "${QT_LIBS}"/libicui18n.so* \
+             "${QT_LIBS}"/libicuuc.so* "${QT_LIBS}"/libicu*.so*; do
+        [ -f "$f" ] && mv "$f" "${BUILD_DIR}"/qt-keep/ 2>/dev/null || true
+    done
+    rm -rf "${QT_LIBS}"
+    mv "${BUILD_DIR}"/qt-keep "${QT_LIBS}"
+fi
 
 # Entrypoint and desktop integration
 cat > "${APPDIR}/usr/bin/packrat" <<'EOF'
