@@ -65,6 +65,26 @@ cp -a "${TARGET_SITE}"/. "${APPDIR}/usr/lib/python${PYVER}/site-packages/"
 rm -rf "${APPDIR}"/usr/lib/python${PYVER}/site-packages/packrat/__pycache__ 2>/dev/null || true
 find "${APPDIR}/usr/lib/python${PYVER}" -maxdepth 1 -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 
+# Prune PyQt6 modules packrat does not use (only QtCore/QtGui/QtWidgets/
+# QtNetwork are imported); unused bindings reference Qt libs that are not
+# shipped in the PyQt6 wheel and would break linuxdeploy dependency
+# deployment while bloating the image.
+PYQT_SITE="${APPDIR}/usr/lib/python${PYVER}/site-packages/PyQt6"
+find "${PYQT_SITE}" -maxdepth 1 -name '*.so' ! -name 'QtCore*' ! -name 'QtGui*' \
+    ! -name 'QtNetwork*' ! -name 'QtWidgets*' ! -name 'sip*' -exec rm -f {} + 2>/dev/null || true
+for qtdir in "${PYQT_SITE}"/Qt6/lib; do
+    rm -f "${qtdir}"/libQt63D* "${qtdir}"/libQt6Qml* "${qtdir}"/libQt6Quick* \
+          "${qtdir}"/libQt6WebEngine* "${qtdir}"/libQt6WebView* \
+          "${qtdir}"/libQt6Scxml* "${qtdir}"/libQt6Pdf* \
+          "${qtdir}"/libQt6Designer* "${qtdir}"/libQt6Help* \
+          "${qtdir}"/libQt6Test* "${qtdir}"/libQt6Bluetooth* \
+          "${qtdir}"/libQt6Charts* "${qtdir}"/libQt6DataVisualization* \
+          "${qtdir}"/libQt6Multimedia* "${qtdir}"/libQt6Sensors* \
+          "${qtdir}"/libQt6Serial* "${qtdir}"/libQt6Spatial* \
+          "${qtdir}"/libQt6Sql* "${qtdir}"/libQt6TextToSpeech* \
+          "${qtdir}"/libQt6UiTools* 2>/dev/null || true
+done
+
 # Entrypoint and desktop integration
 cat > "${APPDIR}/usr/bin/packrat" <<'EOF'
 #!/usr/bin/env bash
