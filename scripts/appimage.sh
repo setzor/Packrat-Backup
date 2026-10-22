@@ -82,6 +82,7 @@ if [ -d "${QT_LIBS}" ]; then
             ! -name platforms ! -name imageformats ! -name iconengines \
             ! -name styles ! -name tls ! -name networkinformation \
             -exec rm -rf {} + 2>/dev/null || true
+        rm -f "${PLUGINS}"/imageformats/libqpdf.so 2>/dev/null || true
     fi
     # Compute the transitive closure of Qt6 libs needed by the four
     # PyQt6 bindings packrat imports, the platform plugins and the
