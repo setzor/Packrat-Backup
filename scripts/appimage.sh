@@ -43,7 +43,8 @@ PYLIB=(/usr/lib/x86_64-linux-gnu/libpython${PYVER}*.so.1.0
        /usr/lib*/libpython${PYVER}*.so.1.0)
 shopt -u nullglob
 for lib in "${PYLIB[@]}"; do
-    install -D -m 0755 "${lib}" "${APPDIR}/usr/lib/"
+    mkdir -p "${APPDIR}/usr/lib"
+    install -m 0755 "${lib}" "${APPDIR}/usr/lib/"
     break
 done
 
