@@ -24,7 +24,7 @@ jobs:
             libxcb-util1 libxcb-xfixes0 libxcb-xkb1 libxcb-xinerama0 \
             libxkbcommon-x11-0 libxext6 libxrandr2 libxrender1 \
             libxi6 libxkbfile1 libwayland-client0 libwayland-cursor0 \
-            libwayland-egl1 libegl1-mesa-dri libgbm1 libdrm2
+            libwayland-egl1 libegl1 libgbm1 libdrm2
       - name: Checkout
         uses: actions/checkout@v4
       - name: Build AppImage
