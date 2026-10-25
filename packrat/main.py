@@ -300,6 +300,7 @@ class MainWindow(QMainWindow):
         self.settings.keep_weekly = data["keep_weekly"]
         self.settings.keep_monthly = data["keep_monthly"]
         self.settings.keep_yearly = data["keep_yearly"]
+        self.settings.keep_within = data["keep_within"]
         self.settings.auto_prune = data["auto_prune"]
         self.settings.auto_prune_interval_days = data["auto_prune_interval_days"]
         self.settings.save()

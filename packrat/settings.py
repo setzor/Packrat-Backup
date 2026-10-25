@@ -45,6 +45,28 @@ class ScheduleConfig:
     interval_start: str = "12:00"
 
 
+KEEP_WITHIN_UNITS = ("y", "m", "w", "d")
+
+
+def parse_keep_within(value: str) -> tuple:
+    """Split a restic duration like '1m' into (count, restic suffix)."""
+    text = str(value or "").strip()
+    if not text:
+        return 0, "m"
+    for unit in KEEP_WITHIN_UNITS:
+        if text.endswith(unit) and text[: -len(unit)].isdigit():
+            return int(text[: -len(unit)]), unit
+    return 0, "m"
+
+
+def format_keep_within(count: int, suffix: str) -> str:
+    """Build a restic duration; empty string disables --keep-within."""
+    count = int(count or 0)
+    if count <= 0:
+        return ""
+    return f"{count}{suffix}"
+
+
 class Settings:
     """Load/save of all Packrat options via QSettings.
 

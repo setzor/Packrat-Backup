@@ -86,6 +86,7 @@ def test_retention_roundtrip_and_auto_prune_setting(qapp):
     settings.keep_weekly = 6
     settings.keep_monthly = 3
     settings.keep_yearly = 1
+    settings.keep_within = ""
     settings.auto_prune = False
     page.load(cfg, settings=settings)
     data = page.save()
@@ -93,15 +94,37 @@ def test_retention_roundtrip_and_auto_prune_setting(qapp):
     assert data["keep_weekly"] == 6
     assert data["keep_monthly"] == 3
     assert data["keep_yearly"] == 1
+    assert data["keep_within"] == ""
+    assert page._keep_within_spin.value() == 0
     assert data["auto_prune"] is False
 
     page._auto_prune_check.setChecked(True)
     page._keep_daily_spin.setValue(7)
     page._auto_prune_interval_spin.setValue(30)
+    page._keep_within_spin.setValue(2)
+    page._keep_within_unit.setCurrentIndex(2)
     data = page.save()
     assert data["auto_prune"] is True
     assert data["keep_daily"] == 7
     assert data["auto_prune_interval_days"] == 30
+    assert data["keep_within"] == "2w"
+
+
+def test_keep_within_roundtrip_from_duration(qapp):
+    from packrat.pages.schedule import ScheduleConfig, ScheduleMode, SchedulePage
+    from packrat.settings import Settings
+
+    cfg = ScheduleConfig(mode=ScheduleMode.WEEKLY, time="01:00")
+    page = SchedulePage()
+    settings = Settings()
+    settings.keep_within = "3m"
+    page.load(cfg, settings=settings)
+    assert page._keep_within_spin.value() == 3
+    assert page._keep_within_unit.currentData() == "m"
+    assert page.save()["keep_within"] == "3m"
+
+    page._keep_within_spin.setValue(0)
+    assert page.save()["keep_within"] == ""
 
 
 def test_pause_does_not_grey_out_retention(qapp):
