@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from ..settings import ScheduleMode
+from ..settings import ScheduleMode, format_keep_within, parse_keep_within
 
 _WEEKDAYS = [
     ("Mon", 0),
@@ -158,7 +158,9 @@ class SchedulePage(QWidget):
         retention_layout = QVBoxLayout(retention_box)
         retention_hint = QLabel(
             "Old backups beyond these limits are removed. One backup of each "
-            "period is always kept, so you never lose every restore point."
+            "period is always kept, so you never lose every restore point. "
+            '"Keep within" additionally keeps every backup newer than the '
+            "given duration; set it to 0 to rely only on the counts above."
         )
         retention_hint.setStyleSheet("color: #666;")
         retention_hint.setWordWrap(True)
@@ -184,6 +186,23 @@ class SchedulePage(QWidget):
             spin.valueChanged.connect(self.changed.emit)
             spin.setMinimumWidth(110)
 
+        self._keep_within_spin = QSpinBox()
+        self._keep_within_spin.setRange(0, 365)
+        self._keep_within_spin.setToolTip(
+            "Additionally keep every backup newer than this, on top of the "
+            'counts above. 0 disables it.\nFor example, with "Keep within" '
+            "set to 1 month, weekly backups from the last month are all "
+            'kept even if "Keep weekly" is lower.'
+        )
+        self._keep_within_unit = QComboBox()
+        for label, suffix in (("days", "d"), ("weeks", "w"), ("months", "m"), ("years", "y")):
+            self._keep_within_unit.addItem(label, suffix)
+        for widget in (self._keep_within_spin, self._keep_within_unit):
+            if hasattr(widget, "valueChanged"):
+                widget.valueChanged.connect(self.changed.emit)
+            else:
+                widget.currentIndexChanged.connect(self.changed.emit)
+
         retention_grid = QGridLayout()
         retention_grid.setHorizontalSpacing(32)
         retention_grid.setVerticalSpacing(12)
@@ -195,6 +214,9 @@ class SchedulePage(QWidget):
         retention_grid.addWidget(self._keep_monthly_spin, 1, 1)
         retention_grid.addWidget(QLabel("Keep yearly:"), 1, 2)
         retention_grid.addWidget(self._keep_yearly_spin, 1, 3)
+        retention_grid.addWidget(QLabel("Keep within:"), 2, 0)
+        retention_grid.addWidget(self._keep_within_spin, 2, 1)
+        retention_grid.addWidget(self._keep_within_unit, 2, 2)
         retention_grid.setColumnStretch(4, 1)
         retention_layout.addLayout(retention_grid)
 
@@ -303,6 +325,14 @@ class SchedulePage(QWidget):
                 spin.blockSignals(True)
                 spin.setValue(int(value))
                 spin.blockSignals(False)
+            within_value, within_suffix = parse_keep_within(settings.keep_within)
+            self._keep_within_spin.blockSignals(True)
+            self._keep_within_spin.setValue(within_value)
+            self._keep_within_spin.blockSignals(False)
+            self._keep_within_unit.blockSignals(True)
+            index = self._keep_within_unit.findData(within_suffix)
+            self._keep_within_unit.setCurrentIndex(max(index, 0))
+            self._keep_within_unit.blockSignals(False)
             self._auto_prune_check.blockSignals(True)
             self._auto_prune_check.setChecked(bool(settings.auto_prune))
             self._auto_prune_check.blockSignals(False)
@@ -388,6 +418,9 @@ class SchedulePage(QWidget):
             "keep_weekly": self._keep_weekly_spin.value(),
             "keep_monthly": self._keep_monthly_spin.value(),
             "keep_yearly": self._keep_yearly_spin.value(),
+            "keep_within": format_keep_within(
+                self._keep_within_spin.value(), self._keep_within_unit.currentData()
+            ),
             "auto_prune": self._auto_prune_check.isChecked(),
             "auto_prune_interval_days": self._auto_prune_interval_spin.value(),
         }
