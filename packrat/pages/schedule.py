@@ -159,7 +159,7 @@ class SchedulePage(QWidget):
         retention_hint = QLabel(
             "Old backups beyond these limits are removed. One backup of each "
             "period is always kept, so you never lose every restore point. "
-            "\"Keep within\" additionally keeps every backup newer than the "
+            '"Keep within" additionally keeps every backup newer than the '
             "given duration; set it to 0 to rely only on the counts above."
         )
         retention_hint.setStyleSheet("color: #666;")
@@ -190,9 +190,9 @@ class SchedulePage(QWidget):
         self._keep_within_spin.setRange(0, 365)
         self._keep_within_spin.setToolTip(
             "Additionally keep every backup newer than this, on top of the "
-            "counts above. 0 disables it.\nFor example, with \"Keep within\" "
+            'counts above. 0 disables it.\nFor example, with "Keep within" '
             "set to 1 month, weekly backups from the last month are all "
-            "kept even if \"Keep weekly\" is lower."
+            'kept even if "Keep weekly" is lower.'
         )
         self._keep_within_unit = QComboBox()
         for label, suffix in (("days", "d"), ("weeks", "w"), ("months", "m"), ("years", "y")):

@@ -102,7 +102,7 @@ def test_retention_roundtrip_and_auto_prune_setting(qapp):
     page._keep_daily_spin.setValue(7)
     page._auto_prune_interval_spin.setValue(30)
     page._keep_within_spin.setValue(2)
-    page._keep_within_unit.setCurrentIndex(2)
+    page._keep_within_unit.setCurrentIndex(page._keep_within_unit.findData("w"))
     data = page.save()
     assert data["auto_prune"] is True
     assert data["keep_daily"] == 7
@@ -111,8 +111,8 @@ def test_retention_roundtrip_and_auto_prune_setting(qapp):
 
 
 def test_keep_within_roundtrip_from_duration(qapp):
-    from packrat.pages.schedule import ScheduleConfig, ScheduleMode, SchedulePage
-    from packrat.settings import Settings
+    from packrat.pages.schedule import SchedulePage
+    from packrat.settings import ScheduleConfig, ScheduleMode, Settings
 
     cfg = ScheduleConfig(mode=ScheduleMode.WEEKLY, time="01:00")
     page = SchedulePage()
