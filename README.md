@@ -104,7 +104,7 @@ real restic init/backup/restore roundtrip when restic is installed.
 
 ## Packaging
 
-Packrat ships as both RPM and DEB, built in CI (Fedora 44 and Debian 13
+Packrat ships as both RPM and DEB, built in CI (Fedora 45 and Debian 13
 containers) on every push:
 
 - Desktop entry: `io.github.setzor.PackratBackup.desktop`
