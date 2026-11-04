@@ -8,9 +8,9 @@ on:
 
 jobs:
   fedora-rpm:
-    name: Fedora 44 x86_64
+    name: Fedora 45 x86_64
     runs-on: ubuntu-latest
-    container: fedora:44
+    container: fedora:45
     steps:
       - name: Install build dependencies
         run: |
@@ -42,5 +42,5 @@ jobs:
       - name: Upload RPM artifact
         uses: actions/upload-artifact@v4
         with:
-          name: packrat-fedora44-x86_64
+          name: packrat-fedora45-x86_64
           path: artifacts/
