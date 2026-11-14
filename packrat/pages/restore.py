@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QFileDialog,
     QGroupBox,
@@ -27,12 +27,30 @@ from ..restic import _human_size
 
 def _size_text(snapshot: dict) -> str:
     """Human size of a snapshot's contents, if restic recorded it."""
-    summary = snapshot.get("summary") or {}
-    try:
-        size = int(summary.get("total_bytes_processed"))
-    except (TypeError, ValueError):
+    size = _size_bytes(snapshot)
+    if size < 0:
         return "unknown"
     return _human_size(size)
+
+
+def _size_bytes(snapshot: dict) -> int:
+    """Raw snapshot size in bytes, or -1 when restic did not record it."""
+    summary = snapshot.get("summary") or {}
+    try:
+        return int(summary.get("total_bytes_processed"))
+    except (TypeError, ValueError):
+        return -1
+
+
+class _SortableItem(QTableWidgetItem):
+    """Table item that sorts by a numeric UserRole value when present (#99)."""
+
+    def __lt__(self, other) -> bool:
+        mine = self.data(Qt.ItemDataRole.UserRole)
+        theirs = other.data(Qt.ItemDataRole.UserRole)
+        if mine is not None and theirs is not None:
+            return mine < theirs
+        return super().__lt__(other)
 
 
 def _folders_text(snapshot: dict) -> str:
@@ -84,10 +102,9 @@ class RestorePage(QWidget):
         self._table = QTableWidget(0, 4)
         self._table.setHorizontalHeaderLabels(["When", "Folders backed up", "Size", "ID"])
         header = self._table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        header.setStretchLastSection(False)
+        self._header_sized = False
         self._table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self._table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -195,18 +212,26 @@ class RestorePage(QWidget):
 
     # ------------------------------------------------------------------ state
     def set_snapshots(self, snapshots) -> None:
+        self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
         for snapshot in snapshots:
             if not isinstance(snapshot, dict):
                 continue
             row = self._table.rowCount()
             self._table.insertRow(row)
-            self._table.setItem(
-                row, 0, QTableWidgetItem(format_snapshot_time(str(snapshot.get("time", ""))))
-            )
+            when_item = QTableWidgetItem(format_snapshot_time(str(snapshot.get("time", ""))))
+            when_item.setData(Qt.ItemDataRole.UserRole, str(snapshot.get("time", "")))
+            self._table.setItem(row, 0, when_item)
             self._table.setItem(row, 1, QTableWidgetItem(_folders_text(snapshot)))
-            self._table.setItem(row, 2, QTableWidgetItem(_size_text(snapshot)))
+            size_item = _SortableItem(_size_text(snapshot))
+            size_item.setData(Qt.ItemDataRole.UserRole, _size_bytes(snapshot))
+            self._table.setItem(row, 2, size_item)
             self._table.setItem(row, 3, QTableWidgetItem(str(snapshot.get("short_id", ""))))
+        self._table.setSortingEnabled(True)
+        if not self._header_sized:
+            header = self._table.horizontalHeader()
+            header.resizeSections(QHeaderView.ResizeMode.ResizeToContents)
+            self._header_sized = True
 
     def set_enabled_state(self, running: bool) -> None:
         self._restore_button.setEnabled(not running)
