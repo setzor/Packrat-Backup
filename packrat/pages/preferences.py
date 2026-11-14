@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
+    QPushButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -19,6 +20,7 @@ from PyQt6.QtWidgets import (
 
 class PreferencesPage(QWidget):
     changed = pyqtSignal()
+    wizard_requested = pyqtSignal()
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -165,6 +167,19 @@ class PreferencesPage(QWidget):
         change_layout.addWidget(self._change_spin)
         change_layout.addStretch(1)
         root.addWidget(change_box)
+
+        setup_box = QGroupBox("Setup")
+        setup_layout = QHBoxLayout(setup_box)
+        wizard_button = QPushButton("Re-run setup wizard…")
+        wizard_button.setToolTip(
+            "Replay the first-run wizard to choose folders, destination, "
+            "password and schedule again. Use this if the backup password "
+            "can no longer be read from your system keyring."
+        )
+        wizard_button.clicked.connect(self.wizard_requested.emit)
+        setup_layout.addWidget(wizard_button)
+        setup_layout.addStretch(1)
+        root.addWidget(setup_box)
         root.addStretch(1)
 
     def _on_changed(self) -> None:
