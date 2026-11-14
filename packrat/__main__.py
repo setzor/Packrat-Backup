@@ -18,6 +18,11 @@ def main(argv=None) -> int:
         help="start minimised to the system tray",
     )
     parser.add_argument(
+        "--wizard",
+        action="store_true",
+        help="run the first-run setup wizard again on startup",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="verbose logging to stderr",
@@ -53,6 +58,9 @@ def main(argv=None) -> int:
         return 0
 
     settings = Settings()
+    if args.wizard:
+        settings.first_run_done = False
+        settings.save()
     window = MainWindow(settings)
     guard._on_activate = window.show_and_raise
     if not args.tray:

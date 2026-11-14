@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -44,7 +46,7 @@ from .pages import (
     SnapshotBrowserDialog,
     StoragePage,
 )
-from .passwords import load_password, store_password
+from .passwords import load_password, store_password, validate_password
 from .restic import ResticProcessError
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
@@ -142,6 +144,7 @@ class MainWindow(QMainWindow):
         self.backend.restic.prune_stats_ready.connect(self._on_prune_stats)
         self.backend.files_ready.connect(self._on_files_ready)
         self.preferences_page.changed.connect(self._save_preferences)
+        self.preferences_page.wizard_requested.connect(self._run_first_run_wizard)
         self.job.started.connect(self._on_job_started)
         self.job.finished.connect(self._on_job_finished)
         self.job.finished.connect(lambda *_: self._refresh_history())
@@ -214,6 +217,54 @@ class MainWindow(QMainWindow):
         password = load_password()
         if password:
             self.backend.set_password(password)
+
+    def _ensure_password(self) -> bool:
+        """Make sure the backend holds the repository password.
+
+        Applies the password from the system keyring/fallback file and, when
+        it cannot be read (e.g. KWallet unavailable after a system or Packrat
+        upgrade), offers to re-enter and re-store it instead of dead-ending
+        the user with no way to recover.
+        """
+        if self.backend.has_password():
+            return True
+        self._apply_password_from_store()
+        if self.backend.has_password():
+            return True
+        answer = QMessageBox.question(
+            self,
+            "Packrat Backup",
+            "Packrat could not read the backup password from your system "
+            "keyring (or its fallback file).\n\nThis can happen after a "
+            "system or Packrat upgrade, for example when KWallet is not "
+            "available.\n\nRe-enter your existing backup password to "
+            "continue? This is the password chosen during the first-run "
+            "setup; without it existing backups stay encrypted.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return False
+        while True:
+            password, ok = QInputDialog.getText(
+                self,
+                "Packrat Backup",
+                "Backup password:",
+                QLineEdit.EchoMode.Password,
+            )
+            if not ok:
+                return False
+            error = validate_password(password)
+            if error:
+                QMessageBox.warning(self, "Packrat Backup", error)
+                continue
+            if not store_password(password):
+                QMessageBox.warning(
+                    self, "Packrat Backup", "Could not store the password; please try again."
+                )
+                return False
+            self.backend.set_password(password)
+            return True
 
     def _run_first_run_wizard(self) -> None:
         from .wizard import FirstRunWizard
@@ -333,15 +384,8 @@ class MainWindow(QMainWindow):
                 self, "Packrat Backup", "Choose at least one folder to back up first."
             )
             return
-        if not load_password() and not self.backend.has_password():
-            QMessageBox.warning(
-                self,
-                "Packrat Backup",
-                "No backup password is stored. Please complete the first-run setup.",
-            )
+        if not self._ensure_password():
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
         try:
             self.job.start_backup()
         except BackendError as exc:
@@ -356,15 +400,8 @@ class MainWindow(QMainWindow):
                 self, "Packrat Backup", "Choose at least one folder to back up first."
             )
             return
-        if not load_password() and not self.backend.has_password():
-            QMessageBox.warning(
-                self,
-                "Packrat Backup",
-                "No backup password is stored. Please complete the first-run setup.",
-            )
+        if not self._ensure_password():
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
         try:
             self.overview_page.set_previewing(True)
             self.overview_page.clear_preview()
@@ -383,14 +420,7 @@ class MainWindow(QMainWindow):
         if not self.backend.is_configured():
             QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
-        if not self.backend.has_password():
-            QMessageBox.warning(
-                self,
-                "Packrat Backup",
-                "No backup password is stored; cannot verify the repository.",
-            )
+        if not self._ensure_password():
             return
         try:
             self.overview_page.set_checking(True)
@@ -454,12 +484,7 @@ class MainWindow(QMainWindow):
                 self, "Packrat Backup", "Select a snapshot and a destination folder."
             )
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
-        if not self.backend.has_password():
-            QMessageBox.warning(
-                self, "Packrat Backup", "No backup password is stored; cannot restore."
-            )
+        if not self._ensure_password():
             return
         self.job.start_restore(snapshot_id, target, includes)
 
@@ -682,12 +707,7 @@ class MainWindow(QMainWindow):
     def _on_browse_snapshot(self, snapshot_id: str, snapshot_time: str) -> None:
         if self.backend.is_busy():
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
-        if not self.backend.has_password():
-            QMessageBox.warning(
-                self, "Packrat Backup", "No backup password is stored; cannot browse snapshots."
-            )
+        if not self._ensure_password():
             return
         self._browser = SnapshotBrowserDialog(snapshot_id, snapshot_time, self)
         self._browser.closed.connect(self._on_browser_closed)
@@ -802,14 +822,7 @@ class MainWindow(QMainWindow):
         if not self.backend.is_configured():
             QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
-        if not self.backend.has_password():
-            QMessageBox.warning(
-                self,
-                "Packrat Backup",
-                "No backup password is stored; cannot clean up the repository.",
-            )
+        if not self._ensure_password():
             return
         if self.backend.has_snapshots():
             confirm = QMessageBox.question(
@@ -979,14 +992,7 @@ class MainWindow(QMainWindow):
         if not self.backend.is_configured():
             QMessageBox.information(self, "Packrat Backup", "Choose a backup destination first.")
             return
-        if not self.backend.has_password():
-            self._apply_password_from_store()
-        if not self.backend.has_password():
-            QMessageBox.warning(
-                self,
-                "Packrat Backup",
-                "No backup password is stored; cannot clean up the repository.",
-            )
+        if not self._ensure_password():
             return
         if self.backend.has_snapshots():
             started = self.job.start_prune()
