@@ -73,25 +73,25 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 
 
 %changelog
-* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.4.4-1
+* Mon Oct 20 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.4.4-1
 - Recover gracefully when the stored backup password cannot be read: re-enter it from the error dialog, re-run the setup wizard from Preferences or with packrat --wizard (PR #108)
 - Detect a stale tray process after a package upgrade and offer a one-click restart (issue #104, PR #109)
 - Restore page: resizable columns and click-to-sort snapshot table with numeric size sorting (issue #99, PR #109)
-* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.4-1
+* Mon Oct 20 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.3.4-1
 - Fix the About page showing a stale version; it now reads the installed package version (PR #100)
 - Fix the wrong "keeps running in the tray" notification when quitting from the tray menu (PR #101)
-* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.3-1
+* Mon Oct 20 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.3.3-1
 - Fix the main window unable to resize smaller after the 0.3.2 schedule additions (PR #97)
 - Schedule page options are now scrollable when the window is small (PR #97)
-* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.2-1
+* Mon Oct 20 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.3.2-1
 - Add hourly and custom-interval schedule modes with battery and metered-network guards (issue #22, PR #94)
 - Add single-instance guard so launcher clicks activate the running tray app (PR #93)
 - Make clicking the tray icon open the window again (PR #95)
-* Sun Oct 11 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.1-1
+* Sun Oct 11 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.3.1-1
 - Add a Size column to the Restore page snapshots grid (PR #91)
 - Fix snapshot-contents cache never hitting by matching short and full snapshot ids (PR #90)
 - Rename application ID to io.github.setzor.PackratBackup (PR #89)
-* Sat Oct 10 2026 Packrat Backup contributors <noreply@github.com> - 0.3.0-1
+* Sat Oct 10 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.3.0-1
 - Add snapshot contents cache: repeat and pre-cached snapshot browsing is instant (issue #81)
 - Add background pre-caching of new snapshot contents after each backup, with a Preferences toggle
 - Add a Refresh button to the snapshot browser to re-list from the destination
@@ -105,7 +105,7 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 - Fix nanosecond snapshot timestamps breaking Python 3.10
 - Fix cloud progress showing disk-speed-based ETAs
 - Fix rclone serve restic failing on unknown --dir-cache-time flag
-* Sun Oct 04 2026 Packrat Backup contributors <noreply@github.com> - 0.2.0-1
+* Sun Oct 04 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.2.0-1
 - Add change detection: warn when a backup shows mass-change patterns (issue #29 stage 1)
 - Add Overview "Change check" tile, red badge and urgent notification on suspicious runs
 - Add change detection on/off and threshold settings to Preferences
@@ -118,7 +118,7 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 - Fix weekly catch-up missing schedules after absences longer than 8 days (issue #44)
 - Fix settings lists not round-tripping entries containing commas (issue #45)
 
-* Thu Oct 01 2026 Packrat Backup contributors <noreply@github.com> - 0.1.2-1
+* Thu Oct 01 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.1.2-1
 - Guard all-zero retention policy so prune can never delete every snapshot
 - Wire restic QProcess errorOccurred so a failed launch no longer leaves the UI stuck
 - Add backup history page and persistent schedule pause setting
@@ -126,11 +126,11 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 - Cache Restore page snapshots per refresh interval
 - Fix page order mismatch in nav stack and spurious save during Preferences load
 - Fix Clean Up button not resetting after cleanup finishes
-* Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.1-1
+* Mon Sep 28 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.1.1-1
 - Fix Restore page Refresh crash when a restic operation is already running
 - Catch restic errors during first-run wizard repository init
 - Use Pakkie mascot for the tray icon and set an explicit window icon
 - Fix RPM metadata: python3-pyqt6 dependency, Packager, SPDX license
 
-* Mon Sep 28 2026 Packrat Backup contributors <noreply@github.com> - 0.1.0-1
+* Mon Sep 28 2026 Packrat Backup contributors <setzor@users.noreply.github.com> - 0.1.0-1
 - Initial RPM package
