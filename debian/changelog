@@ -1,3 +1,11 @@
+packrat (0.4.4-1) unstable; urgency=medium
+
+  * Recover gracefully when the stored backup password cannot be read: re-enter it from the error dialog, re-run the setup wizard from Preferences or with "packrat --wizard" (PR #108)
+  * Detect a stale tray process after a package upgrade and offer a one-click restart (issue #104, PR #109)
+  * Restore page: resizable columns and click-to-sort snapshot table with numeric size sorting (issue #99, PR #109)
+
+ -- Packrat Backup contributors <setzor@users.noreply.github.com>  Sat, 14 Nov 2026 19:24:40 +0000
+
 packrat (0.3.4-1) unstable; urgency=medium
 
   * Fix the About page showing a stale version; it now reads the installed package version (PR #100)

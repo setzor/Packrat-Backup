@@ -1,5 +1,5 @@
 Name:           packrat
-Version:        0.3.4
+Version:        0.4.4
 Release:        1%{?dist}
 Summary:        A KDE Plasma/Qt native backup application with OneDrive/Google Drive support
 Packager:       setzor <setzor@users.noreply.github.com>
@@ -73,6 +73,10 @@ appstream-util validate-relax %{buildroot}%{_metainfodir}/io.github.setzor.Packr
 
 
 %changelog
+* Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.4.4-1
+- Recover gracefully when the stored backup password cannot be read: re-enter it from the error dialog, re-run the setup wizard from Preferences or with packrat --wizard (PR #108)
+- Detect a stale tray process after a package upgrade and offer a one-click restart (issue #104, PR #109)
+- Restore page: resizable columns and click-to-sort snapshot table with numeric size sorting (issue #99, PR #109)
 * Mon Oct 20 2026 Packrat Backup contributors <noreply@users.noreply.github.com> - 0.3.4-1
 - Fix the About page showing a stale version; it now reads the installed package version (PR #100)
 - Fix the wrong "keeps running in the tray" notification when quitting from the tray menu (PR #101)
