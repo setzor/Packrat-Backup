@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime as _dt
 import logging
 import os
+import sys
 import threading
 from typing import Optional
 
@@ -24,7 +25,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from . import APP_NAME
+from . import APP_NAME, __version__, _version_from_metadata
 from .activity import log_run
 from .backend import BackendError, BackupBackend
 from .humanize import (
@@ -89,6 +90,8 @@ class MainWindow(QMainWindow):
         self._ls_snapshot_id: str = ""
         self._cleanup_after_stop: bool = False
         self._quitting: bool = False
+        self._started_version = __version__
+        self._upgrade_prompted = False
         self.setWindowTitle(APP_NAME)
         self.resize(900, 640)
 
@@ -1118,9 +1121,56 @@ class MainWindow(QMainWindow):
         )
 
     def show_and_raise(self) -> None:
+        self._warn_if_upgraded()
         self.show()
         self.raise_()
         self.activateWindow()
+
+    def _warn_if_upgraded(self) -> None:
+        """Detect a stale tray process after a package upgrade (#104).
+
+        The single-instance guard reactivates an old tray process on every
+        launcher click, so users can silently run an outdated Packrat for
+        weeks. Compare the version this process started with against the
+        freshly installed one on disk and offer a restart when they differ.
+        """
+        if self._upgrade_prompted:
+            return
+        try:
+            installed = _version_from_metadata()
+        except Exception:
+            return
+        if installed in (self._started_version, "0.0.0+dev"):
+            return
+        self._upgrade_prompted = True
+        log.warning("Running %s but %s is installed", self._started_version, installed)
+        answer = QMessageBox.question(
+            self,
+            "Packrat Backup",
+            f"Packrat was upgraded to {installed}, but this instance is "
+            f"still running version {self._started_version}.\n\n"
+            "Restart Packrat now to use the new version?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.Yes,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self._restart_after_upgrade()
+
+    def _restart_after_upgrade(self) -> None:
+        from PyQt6.QtCore import QProcess
+
+        if not QProcess.startDetached(sys.argv[0], sys.argv[1:]):
+            QMessageBox.warning(
+                self,
+                "Packrat Backup",
+                "Could not relaunch Packrat automatically. "
+                "Please quit Packrat from the tray and start it again.",
+            )
+            return
+        self._quitting = True
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
 
     def closeEvent(self, event) -> None:
         # An exception escaping a Qt event handler crashes the whole app on
