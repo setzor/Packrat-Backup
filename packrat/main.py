@@ -1109,6 +1109,7 @@ class MainWindow(QMainWindow):
             last_dt,
             nxt if not running else None,
             paused=self.scheduler.is_paused(),
+            cfg=self.settings.schedule,
         )
         if self.settings.last_change_status == "suspicious":
             status = {"state": "error", "label": "Unusual changes detected!"}
