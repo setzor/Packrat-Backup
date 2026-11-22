@@ -18,6 +18,43 @@ class RcloneError(RuntimeError):
     pass
 
 
+_CONFIG_LOCKED_MARKERS = (
+    "unable to decrypt configuration",
+    "couldn't decrypt configuration",
+    "enter configuration password",
+    "set rclone_config_pass",
+)
+
+
+def is_config_locked(text: str) -> bool:
+    """True when rclone's output says the config file is password-protected.
+
+    Without the password rclone would otherwise sit on an interactive
+    "Enter configuration password:" prompt forever when stdin is a pipe
+    (which is what a QProcess child gets), so Packrat passes
+    ``--ask-password=false`` and recognises the resulting error here.
+    """
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in _CONFIG_LOCKED_MARKERS)
+
+
+def config_locked_message() -> str:
+    """Friendly, actionable replacement for rclone's config-password error."""
+    return (
+        "Your rclone configuration file is password-protected, so Packrat cannot "
+        "read your cloud remotes. To fix this, either run 'rclone config' in a "
+        "terminal and choose 's' then 'u' to unencrypt the configuration, or set "
+        "the RCLONE_CONFIG_PASS environment variable to your configuration "
+        "password and restart Packrat. Then click Refresh."
+    )
+
+
+def _friendly_error(stderr: str, stdout: str, success: bool) -> str:
+    if not success and is_config_locked(stderr):
+        return config_locked_message()
+    return stderr.strip() or stdout.strip() or ("Done" if success else "Failed")
+
+
 class RcloneRunner(QObject):
     """Async helpers around the rclone CLI."""
 
@@ -50,7 +87,11 @@ class RcloneRunner(QObject):
             raise RcloneError("rclone binary not found on this system")
         proc = QProcess(self)
         proc.setProgram(binary)
-        proc.setArguments(args)
+        # Never let rclone block on an interactive password prompt: with a
+        # password-protected config it would wait on stdin forever (a QProcess
+        # child gets a pipe that stays open), which looks like "no response".
+        proc.setArguments(["--ask-password=false"] + args)
+        proc.setStandardInputFile("/dev/null")
         proc.finished.connect(lambda code, status: self._on_finished(proc, code))
         self._process = proc
         self._buffer = ""
@@ -67,14 +108,15 @@ class RcloneRunner(QObject):
         stderr = bytes(proc.readAllStandardError()).decode("utf-8", errors="replace")
         proc.deleteLater()
         success = exit_code == 0
-        if self._pending == "list_remotes":
+        pending = self._pending
+        self._pending = None
+        if pending == "list_remotes" and success:
             remotes = [line.strip().rstrip(":") for line in stdout.splitlines() if line.strip()]
             self.remotes_listed.emit(remotes)
-            self._pending = None
             return
-        message = stderr.strip() or stdout.strip() or ("Done" if success else "Failed")
-        self._pending = None
-        self.finished.emit(success, message)
+        # Failures (including a password-protected config) go to finished so
+        # the UI can complain instead of showing a misleading empty list.
+        self.finished.emit(success, _friendly_error(stderr, stdout, success))
 
     # ------------------------------------------------------------------ operations
     def list_remotes(self) -> None:
@@ -108,11 +150,12 @@ def list_remotes_sync() -> List[str]:
         return []
     try:
         result = subprocess.run(
-            [binary, "listremotes"],
+            [binary, "--ask-password=false", "listremotes"],
             capture_output=True,
             text=True,
             timeout=15,
             check=False,
+            stdin=subprocess.DEVNULL,
         )
     except (OSError, subprocess.SubprocessError):
         return []

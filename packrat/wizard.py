@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 from .passwords import validate_password
 from .rclone import RcloneRunner
 from .rclone_setup import (
+    CONFIG_ERROR_ITEM,
     no_remotes_help,
     open_rclone_config_ui,
     rclone_missing_help,
@@ -143,6 +144,7 @@ class _DestinationPage(QWizardPage):
         self._help_label.setStyleSheet("color: #555;")
         layout.addWidget(self._help_label)
         rclone.remotes_listed.connect(self._on_remotes)
+        rclone.finished.connect(self._on_rclone_finished)
 
     def initializePage(self) -> None:
         self._refresh_remotes()
@@ -182,15 +184,31 @@ class _DestinationPage(QWizardPage):
             self._help_label.setText(no_remotes_help())
         self.completeChanged.emit()
 
+    def _on_rclone_finished(self, success: bool, message: str) -> None:
+        """Complain when rclone fails (e.g. password-protected config)."""
+        if success:
+            return
+        self._remote_combo.clear()
+        self._remote_combo.addItem(CONFIG_ERROR_ITEM)
+        self._help_label.setText(message)
+        self.completeChanged.emit()
+
     def isComplete(self) -> bool:
         if self._cloud_radio.isChecked():
             text = self._remote_combo.currentText()
-            return bool(text) and "not installed" not in text and "No remotes" not in text
+            return (
+                bool(text)
+                and "not installed" not in text
+                and "No remotes" not in text
+                and CONFIG_ERROR_ITEM not in text
+            )
         return bool(self._local_path.text().strip())
 
     def config(self):
         backend = Backend.LOCAL if self._local_radio.isChecked() else Backend.RCLONE
         remote = "" if backend is Backend.LOCAL else self._remote_combo.currentText()
+        if remote in ("No remotes configured", CONFIG_ERROR_ITEM):
+            remote = ""
         return {
             "backend": backend,
             "local_path": self._local_path.text().strip(),
