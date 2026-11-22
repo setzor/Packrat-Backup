@@ -61,6 +61,17 @@ def analyze_summary(
 
     files_new = int(summary.get("files_new", 0) or 0)
     files_changed = int(summary.get("files_changed", 0) or 0)
+    files_unmodified = int(summary.get("files_unmodified", 0) or 0)
+    if files_unmodified == 0 and files_changed == 0 and files_new == total_files:
+        # Every file is new: there was no previous snapshot to compare
+        # against (first backup, or first backup after switching to a new
+        # destination), so a 100% "change" ratio is meaningless here.
+        return ChangeReport(
+            "skipped",
+            total_files=total_files,
+            changed_files=files_new,
+            reason="first backup in this repository — no previous snapshot to compare against",
+        )
     changed_files = files_new + files_changed
     changed_files_ratio = (changed_files / total_files) * 100.0
 

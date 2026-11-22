@@ -43,6 +43,65 @@ def test_empty_summary_is_skipped():
     assert analyze_summary({}).status == "skipped"
 
 
+def test_first_backup_all_new_files_is_skipped_not_suspicious():
+    # Fresh repository (first run, or first run after switching to a new
+    # cloud destination): every processed file is new, nothing unmodified,
+    # nothing "changed" — there is no baseline to compare against.
+    report = analyze_summary(_summary(files=828046, new=828046, changed=0))
+    assert report.status == "skipped"
+    assert "first backup" in report.reason
+    assert report.total_files == 828046
+
+
+def test_ransomware_style_all_changed_still_suspicious():
+    # files_changed == all and files_new == 0: a genuine mass change.
+    report = analyze_summary(_summary(files=1000, new=0, changed=1000))
+    assert report.status == "suspicious"
+    assert report.changed_files_ratio == pytest.approx(100.0)
+
+
+def test_new_files_with_unmodified_baseline_still_analyzed():
+    summary = _summary(files=1000, new=900, changed=0)
+    summary["files_unmodified"] = 100
+    report = analyze_summary(summary)
+    assert report.status == "suspicious"
+    assert report.changed_files_ratio == pytest.approx(90.0)
+
+
+def _job(qapp, monkeypatch, tmp_path):
+    from packrat.backend import BackupBackend
+    from packrat.jobs import BackupJob
+    from packrat.settings import Backend, Settings
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    s = Settings()
+    s.backend_cfg.backend = Backend.LOCAL
+    s.backend_cfg.local_path = str(tmp_path / "backups")
+    s.change_detection = True
+    backend = BackupBackend(s)
+    return BackupJob(s, backend), s
+
+
+def test_job_first_backup_does_not_alert(qapp, monkeypatch, tmp_path):
+    job, settings = _job(qapp, monkeypatch, tmp_path)
+    alerts = []
+    monkeypatch.setattr("packrat.jobs.notify_error", lambda *a, **k: alerts.append(a))
+    job.backend.restic.last_backup_summary = _summary(files=828046, new=828046, changed=0)
+    job._analyze_changes()
+    assert alerts == []
+    assert settings.last_change_status == "skipped"
+
+
+def test_job_mass_change_alerts(qapp, monkeypatch, tmp_path):
+    job, settings = _job(qapp, monkeypatch, tmp_path)
+    alerts = []
+    monkeypatch.setattr("packrat.jobs.notify_error", lambda *a, **k: alerts.append(a))
+    job.backend.restic.last_backup_summary = _summary(files=1000, new=0, changed=1000)
+    job._analyze_changes()
+    assert len(alerts) == 1
+    assert settings.last_change_status == "suspicious"
+
+
 def test_record_and_latest_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr("packrat.change_detect._store_path", lambda: tmp_path / "changes.jsonl")
     record_result(ChangeReport("ok", 2.0, 1.0, 1000, 20), snapshot_id="abc123")
