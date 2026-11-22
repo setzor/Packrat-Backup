@@ -106,10 +106,12 @@ def test_run_backup_backs_up_when_remote_repo_exists(backend, monkeypatch):
     monkeypatch.setattr(
         ResticRunner,
         "backup",
-        lambda self, repo, password, folders, excludes, options=None: launched.append(repo),
+        lambda self, repo, password, folders, excludes, dry_run=False, options=None: (
+            launched.append((repo, dry_run))
+        ),
     )
     backend.run_backup()
-    assert launched == ["rclone:myremote:packrat-backups"]
+    assert launched == [("rclone:myremote:packrat-backups", False)]
     assert backend._initing_for_backup is False
 
 

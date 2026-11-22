@@ -128,6 +128,12 @@ class RestorePage(QWidget):
         refresh_row.addWidget(self._loading_bar, 1)
         snapshots_layout.addLayout(refresh_row)
 
+        self._notice_label = QLabel("")
+        self._notice_label.setWordWrap(True)
+        self._notice_label.setStyleSheet("color: #666;")
+        self._notice_label.setVisible(False)
+        snapshots_layout.addWidget(self._notice_label)
+
         browse_row = QHBoxLayout()
         self._browse_button = QPushButton("Browse Contents…")
         self._browse_button.clicked.connect(self._on_browse)
@@ -211,7 +217,16 @@ class RestorePage(QWidget):
         self.restore_requested.emit(item.text(), self._target_edit.text().strip())
 
     # ------------------------------------------------------------------ state
+    def set_notice(self, message: str) -> None:
+        """Show a friendly inline notice, e.g. no backups at the destination yet."""
+        self._notice_label.setText(message)
+        self._notice_label.setVisible(bool(message))
+
+    def clear_notice(self) -> None:
+        self.set_notice("")
+
     def set_snapshots(self, snapshots) -> None:
+        self.clear_notice()
         self._table.setSortingEnabled(False)
         self._table.setRowCount(0)
         for snapshot in snapshots:
@@ -256,6 +271,8 @@ class RestorePage(QWidget):
         )
 
     def set_loading(self, loading: bool) -> None:
+        if loading:
+            self.clear_notice()
         self._loading_label.setVisible(loading)
         self._loading_bar.setVisible(loading)
         self._refresh_button.setEnabled(not loading)

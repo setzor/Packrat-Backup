@@ -44,6 +44,7 @@ class ResticRunner(QObject):
         super().__init__(parent)
         self._process: Optional[QProcess] = None
         self._operation = ""
+        self._repo = ""
         self._buffer = ""
         self._stderr_text = ""
         self._last_percent: Optional[int] = None
@@ -108,6 +109,7 @@ class ResticRunner(QObject):
         proc.finished.connect(self._on_finished)
         self._process = proc
         self._operation = operation
+        self._repo = repo
         self._repo_is_cloud = repo.startswith("rclone:")
         self._buffer = ""
         self._stderr_text = ""
@@ -439,7 +441,7 @@ class ResticRunner(QObject):
                     f"Estimate ready, but {warning}",
                 )
                 return
-        message = _result_message(self._operation, success, exit_code, stderr)
+        message = _result_message(self._operation, success, exit_code, stderr, repo=self._repo)
         self._buffer = ""
         self._stderr_text = ""
         self.finished.emit(success, message)
@@ -637,7 +639,34 @@ def _extract_exit_warning(stderr: str) -> str:
     return ""
 
 
-def _result_message(operation: str, success: bool, exit_code: int, stderr: str) -> str:
+_REPO_MISSING_MARKERS = (
+    "repository does not exist",
+    "unable to open config file",
+    "is there a repository at the following location",
+    "no backup repository exists",
+)
+
+
+def is_repo_missing(text: str) -> bool:
+    """True when restic's output says the repository does not exist (exit 10).
+
+    Matches both the raw restic/rclone wording (exit 10's exit_error JSON
+    included) and the friendly message :func:`repo_missing_message` produces,
+    so callers can classify either the stderr or an already-built message.
+    """
+    lowered = (text or "").lower()
+    return any(marker in lowered for marker in _REPO_MISSING_MARKERS)
+
+
+def repo_missing_message(repo: str = "") -> str:
+    """Friendly replacement for restic's raw exit-10 JSON blob."""
+    where = f" at {repo}" if repo else ""
+    return f"No backup repository exists{where} yet — run a backup first to create one."
+
+
+def _result_message(
+    operation: str, success: bool, exit_code: int, stderr: str, repo: str = ""
+) -> str:
     generic = {
         "init": "Repository initialised",
         "backup": "Backup complete",
@@ -652,6 +681,8 @@ def _result_message(operation: str, success: bool, exit_code: int, stderr: str) 
     if success:
         success_labels = {"check": "Integrity check passed"}
         return success_labels.get(operation, generic.get(operation, "Operation complete"))
+    if is_repo_missing(stderr):
+        return repo_missing_message(repo)
     detail = _clean_stderr(stderr)
     base = f"{generic.get(operation, 'Operation')} failed (exit {exit_code})"
     return f"{base}: {detail}" if detail else base

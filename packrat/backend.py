@@ -41,6 +41,7 @@ class BackupBackend(QObject):
         self.rclone = RcloneRunner(self)
         self._password = ""
         self._initing_for_backup = False
+        self._initing_for_preview = False
         self._repo_probe: Optional[tuple] = None
         self._snapshot_count: Optional[int] = None
         self.restic.finished.connect(self._on_restic_finished)
@@ -264,6 +265,16 @@ class BackupBackend(QObject):
         return ok, detail
         self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
 
+    def _start_backup_run(self, dry_run: bool = False) -> None:
+        self.restic.backup(
+            self.repo_location(),
+            self._password,
+            self.settings.folders,
+            self._backup_excludes(),
+            dry_run=dry_run,
+            options=self.cloud_options(),
+        )
+
     def run_backup(self) -> None:
         if not self.settings.folders:
             raise BackendError("No folders selected to back up")
@@ -272,27 +283,23 @@ class BackupBackend(QObject):
             self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
             self._initing_for_backup = True
             return
-        self.restic.backup(
-            self.repo_location(),
-            self._password,
-            self.settings.folders,
-            self._backup_excludes(),
-            options=self.cloud_options(),
-        )
+        self._start_backup_run()
 
     def preview_backup(self) -> None:
-        """Dry-run the next backup and report what would be uploaded (#19)."""
+        """Dry-run the next backup and report what would be uploaded (#19).
+
+        A missing repository is created first (like a real backup does), so
+        the estimate works on the very first run instead of dying on restic
+        exit 10; the dry-run then reports everything as new data.
+        """
         if not self.settings.folders:
             raise BackendError("No folders selected to back up")
         self.prepare()
-        self.restic.backup(
-            self.repo_location(),
-            self._password,
-            self.settings.folders,
-            self._backup_excludes(),
-            dry_run=True,
-            options=self.cloud_options(),
-        )
+        if not self._repo_exists():
+            self.restic.init(self.repo_location(), self._password, options=self.cloud_options())
+            self._initing_for_preview = True
+            return
+        self._start_backup_run(dry_run=True)
 
     def _repo_exists(self) -> bool:
         """True when the configured restic repository exists.
@@ -430,22 +437,20 @@ class BackupBackend(QObject):
     def _on_restic_finished(self, success: bool, message: str) -> None:
         if self.restic._operation == "init":
             self._repo_probe = None
-        if self._initing_for_backup and self.restic._operation == "init":
+        if self.restic._operation == "init" and (
+            self._initing_for_backup or self._initing_for_preview
+        ):
+            pending = "dry-run" if self._initing_for_preview else "backup"
             self._initing_for_backup = False
+            self._initing_for_preview = False
             if not success:
-                self.operation_finished.emit("backup", False, message)
+                self.operation_finished.emit(pending, False, message)
                 return
             try:
-                self.restic.backup(
-                    self.repo_location(),
-                    self._password,
-                    self.settings.folders,
-                    self._backup_excludes(),
-                    options=self.cloud_options(),
-                )
+                self._start_backup_run(dry_run=pending == "dry-run")
                 return
             except Exception as exc:
-                self.operation_finished.emit("backup", False, str(exc))
+                self.operation_finished.emit(pending, False, str(exc))
                 return
         operation = self.restic._operation
         if operation == "check":

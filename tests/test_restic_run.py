@@ -236,10 +236,10 @@ def test_clean_ansi_strips_escape_sequences():
 def test_result_message_includes_accumulated_stderr_detail():
     from packrat.restic import _result_message
 
-    stderr = "\x1b[31mFatal:\x1b[0m unable to open config file\n"
+    stderr = "\x1b[31mFatal:\x1b[0m some transfer failure\n"
     msg = _result_message("prune", False, 11, stderr)
     assert "Cleanup complete failed (exit 11)" in msg
-    assert "unable to open config file" in msg
+    assert "some transfer failure" in msg
     assert "\x1b" not in msg
 
 
