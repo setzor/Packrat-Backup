@@ -19,7 +19,12 @@ from PyQt6.QtWidgets import (
 )
 
 from ..rclone import RcloneRunner
-from ..rclone_setup import no_remotes_help, open_rclone_config_ui, rclone_missing_help
+from ..rclone_setup import (
+    CONFIG_ERROR_ITEM,
+    no_remotes_help,
+    open_rclone_config_ui,
+    rclone_missing_help,
+)
 from ..settings import Backend
 
 
@@ -88,6 +93,7 @@ class StoragePage(QWidget):
         root.addStretch(1)
 
         self._rclone.remotes_listed.connect(self._on_remotes_listed)
+        self._rclone.finished.connect(self._on_rclone_finished)
         self._loading = False
 
     # ------------------------------------------------------------------ handlers
@@ -121,6 +127,7 @@ class StoragePage(QWidget):
             self._help_label.setText(rclone_missing_help())
             return
         self._refresh_button.setEnabled(False)
+        self._help_label.setText("Looking for configured cloud remotes…")
         self._rclone.list_remotes()
 
     def _on_setup_clicked(self) -> None:
@@ -146,6 +153,15 @@ class StoragePage(QWidget):
         else:
             self._remote_combo.addItem("No remotes configured")
             self._help_label.setText(no_remotes_help())
+
+    def _on_rclone_finished(self, success: bool, message: str) -> None:
+        """Complain when rclone fails (e.g. password-protected config)."""
+        if success:
+            return
+        self._refresh_button.setEnabled(not self._local_radio.isChecked())
+        if self._remote_combo.count() == 0:
+            self._remote_combo.addItem(CONFIG_ERROR_ITEM)
+        self._help_label.setText(message)
 
     # ------------------------------------------------------------------ state
     def load(self, backend_cfg) -> None:
@@ -176,7 +192,7 @@ class StoragePage(QWidget):
     def save(self):
         backend = Backend.LOCAL if self._local_radio.isChecked() else Backend.RCLONE
         remote = self._remote_combo.currentText() if backend is Backend.RCLONE else ""
-        if remote == "No remotes configured":
+        if remote in ("No remotes configured", CONFIG_ERROR_ITEM):
             remote = ""
         return {
             "backend": backend,

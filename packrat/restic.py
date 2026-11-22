@@ -17,6 +17,7 @@ from typing import Any, List, Optional, Tuple
 
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, QTimer, pyqtSignal
 
+from .rclone import config_locked_message, is_config_locked
 from .tools import restic_path
 
 log = logging.getLogger(__name__)
@@ -683,6 +684,8 @@ def _result_message(
         return success_labels.get(operation, generic.get(operation, "Operation complete"))
     if is_repo_missing(stderr):
         return repo_missing_message(repo)
+    if is_config_locked(stderr):
+        return config_locked_message()
     detail = _clean_stderr(stderr)
     base = f"{generic.get(operation, 'Operation')} failed (exit {exit_code})"
     return f"{base}: {detail}" if detail else base
@@ -714,6 +717,7 @@ _DEFAULT_RCLONE_ARGS = [
     "serve",
     "restic",
     "--stdio",
+    "--ask-password=false",
     "--checkers=16",
     "--fast-list",
     "--transfers={transfers}",
@@ -738,6 +742,8 @@ def _extended_options(repo: str, options: Optional[dict]) -> List[str]:
             "rclone.timeout=5m",
             "-o",
             f"rclone.connections={int(opts.get('connections', 8) or 8)}",
+            "-o",
+            "rclone.args=serve restic --stdio --ask-password=false",
         ]
     args = _DEFAULT_RCLONE_ARGS
     formatted = [a.format(transfers=transfers) for a in args]

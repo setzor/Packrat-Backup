@@ -13,7 +13,7 @@ from typing import Optional, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal
 
-from .rclone import RcloneRunner
+from .rclone import RcloneRunner, config_locked_message, is_config_locked
 from .restic import Restic, ResticRunner, _clean_stderr, keep_args_from_settings
 from .settings import Backend, Settings
 
@@ -172,20 +172,24 @@ class BackupBackend(QObject):
             target = f"{cfg.rclone_remote}:{cfg.rclone_path.strip('/')}"
             try:
                 result = subprocess.run(
-                    [binary, "purge", target, "-v"],
+                    [binary, "--ask-password=false", "purge", target, "-v"],
                     capture_output=True,
                     text=True,
                     timeout=3600,
                     check=False,
+                    stdin=subprocess.DEVNULL,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
                 return False, str(exc)
+            if is_config_locked(result.stderr or ""):
+                return False, config_locked_message()
             probe = subprocess.run(
-                [binary, "lsd", target],
+                [binary, "--ask-password=false", "lsd", target],
                 capture_output=True,
                 text=True,
                 timeout=120,
                 check=False,
+                stdin=subprocess.DEVNULL,
             )
             if probe.returncode == 0:
                 return False, _clean_stderr(result.stderr or "purge left the directory behind")
@@ -224,16 +228,28 @@ class BackupBackend(QObject):
             target = f"{cfg.rclone_remote}:{cfg.rclone_path.strip('/')}/data"
             try:
                 result = subprocess.run(
-                    [binary, "delete", target, "--include", "*-tmp-*", "-v"],
+                    [
+                        binary,
+                        "--ask-password=false",
+                        "delete",
+                        target,
+                        "--include",
+                        "*-tmp-*",
+                        "-v",
+                    ],
                     capture_output=True,
                     text=True,
                     timeout=600,
                     check=False,
+                    stdin=subprocess.DEVNULL,
                 )
             except (OSError, subprocess.SubprocessError) as exc:
                 return False, str(exc)
             if result.returncode != 0:
-                return False, _clean_stderr(result.stderr)
+                stderr = result.stderr or ""
+                if is_config_locked(stderr):
+                    return False, config_locked_message()
+                return False, _clean_stderr(stderr)
             return True, ""
         path = os.path.join(os.path.expanduser(cfg.local_path), "data")
         if not os.path.isdir(path):

@@ -74,3 +74,6 @@ def rclone_missing_help() -> str:
         "rclone is not installed. Install it with your package manager "
         "(e.g. 'sudo dnf install rclone' on Fedora), then click Refresh."
     )
+
+
+CONFIG_ERROR_ITEM = "Could not read rclone config"
