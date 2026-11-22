@@ -98,6 +98,19 @@ def test_scheduler_missed_backup_detection(qapp):
     assert not s.missed_backup(dt.datetime(2026, 9, 28, 8, 0), now)
 
 
+def test_missed_backup_weekly_midweek_is_not_missed(qapp):
+    # Weekly Sunday 01:00 slot: on Saturday the catch-up check must not
+    # report the backup as missed — the next slot is still ahead.
+    # 2026-10-03 is a Saturday, 2026-09-27 / 2026-10-04 are Sundays.
+    cfg = _cfg(ScheduleMode.WEEKLY, "01:00", weekdays=[6])
+    s = Scheduler(cfg)
+    saturday = dt.datetime(2026, 10, 3, 15, 0)
+    assert not s.missed_backup(dt.datetime(2026, 9, 27, 1, 2), saturday)
+    # Sunday after the 01:00 slot without a backup: genuinely missed.
+    sunday = dt.datetime(2026, 10, 4, 3, 0)
+    assert s.missed_backup(dt.datetime(2026, 9, 27, 1, 2), sunday)
+
+
 def test_previous_run_time_weekly_after_long_absence():
     # Issue #44: Packrat not running for weeks must still find the missed slot.
     # Thu 8 Oct 2026, Monday 12:00 slots, last run 5 weeks ago.

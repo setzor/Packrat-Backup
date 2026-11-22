@@ -76,16 +76,35 @@ def backup_status(
     scheduled_next: Optional[_dt.datetime],
     paused: bool = False,
     now: Optional[_dt.datetime] = None,
+    cfg=None,
 ) -> dict:
     """Derive badge state for the overview page.
 
-    Returns {state, label} where state is one of ok / warn / error / idle.
+    Returns {state, label} where state is one of ok / warn / error / info.
+
+    With a schedule configured (``cfg``), "missed" means the most recent
+    scheduled slot is newer than the last completed backup — i.e. the same
+    rule as :meth:`Scheduler.missed_backup`. A fixed "older than 24h" window
+    would false-alarm mid-week on a weekly schedule (e.g. Sunday 01:00 slot
+    shown as "missed" on Saturday).
     """
+    from .scheduler import previous_run_time
+    from .settings import ScheduleMode
+
     now = now or _dt.datetime.now()
     if paused:
         return {"state": "info", "label": "Backups paused"}
     if last_backup is None:
         return {"state": "warn", "label": "Not backed up yet"}
+    if cfg is not None and cfg.mode is not ScheduleMode.OFF:
+        due = previous_run_time(cfg, now)
+        if due is not None:
+            if last_backup >= due:
+                return {"state": "ok", "label": "Backups are up to date"}
+            earlier_due = previous_run_time(cfg, due - _dt.timedelta(seconds=1))
+            if earlier_due is not None and last_backup < earlier_due:
+                return {"state": "error", "label": "Backup overdue"}
+            return {"state": "warn", "label": "Missed a scheduled backup"}
     age_hours = (now - last_backup).total_seconds() / 3600
     if scheduled_next is None:
         # No schedule: judge freshness on a 3-day window

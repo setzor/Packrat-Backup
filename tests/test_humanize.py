@@ -62,6 +62,51 @@ def test_backup_status_states():
     assert status["state"] == "warn"
 
 
+def _weekly_sunday_cfg():
+    from packrat.settings import ScheduleConfig
+
+    return ScheduleConfig(mode=ScheduleMode.WEEKLY, time="01:00", weekdays=[6])
+
+
+def test_backup_status_weekly_midweek_is_ok_not_missed():
+    # Reported bug: weekly Sunday 01:00 schedule; on Saturday the overview
+    # badge said "Missed a scheduled backup" although the next slot is
+    # still tomorrow. 2026-10-03 is a Saturday, 2026-09-27 a Sunday.
+    cfg = _weekly_sunday_cfg()
+    now = dt.datetime(2026, 10, 3, 15, 0)
+    last = dt.datetime(2026, 9, 27, 1, 2)
+    status = backup_status(last, None, now=now, cfg=cfg)
+    assert status == {"state": "ok", "label": "Backups are up to date"}
+
+
+def test_backup_status_weekly_sunday_before_slot_is_ok():
+    cfg = _weekly_sunday_cfg()
+    now = dt.datetime(2026, 10, 4, 0, 30)  # Sunday 00:30, slot is 01:00
+    last = dt.datetime(2026, 9, 27, 1, 2)
+    assert backup_status(last, None, now=now, cfg=cfg)["state"] == "ok"
+
+
+def test_backup_status_weekly_after_slot_missed_then_overdue():
+    cfg = _weekly_sunday_cfg()
+    now = dt.datetime(2026, 10, 4, 3, 0)  # Sunday 03:00, 01:00 slot passed
+    status = backup_status(dt.datetime(2026, 9, 27, 1, 2), None, now=now, cfg=cfg)
+    assert status == {"state": "warn", "label": "Missed a scheduled backup"}
+    # two weekly slots missed -> overdue
+    status = backup_status(dt.datetime(2026, 9, 20, 1, 2), None, now=now, cfg=cfg)
+    assert status == {"state": "error", "label": "Backup overdue"}
+
+
+def test_backup_status_daily_uses_actual_slots():
+    from packrat.settings import ScheduleConfig
+
+    cfg = ScheduleConfig(mode=ScheduleMode.DAILY, time="12:00")
+    now = dt.datetime(2026, 9, 28, 15, 0)  # Monday 15:00
+    ok = backup_status(dt.datetime(2026, 9, 28, 12, 30), None, now=now, cfg=cfg)
+    assert ok["state"] == "ok"
+    missed = backup_status(dt.datetime(2026, 9, 27, 12, 30), None, now=now, cfg=cfg)
+    assert missed == {"state": "warn", "label": "Missed a scheduled backup"}
+
+
 def test_schedule_summary():
     assert schedule_summary(ScheduleMode.OFF, "12:00", []) == "Manual backups only"
     assert schedule_summary(ScheduleMode.DAILY, "09:00", []) == "Daily at 09:00"
