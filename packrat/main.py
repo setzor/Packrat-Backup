@@ -48,7 +48,7 @@ from .pages import (
     StoragePage,
 )
 from .passwords import load_password, store_password, validate_password
-from .restic import ResticProcessError
+from .restic import ResticProcessError, is_repo_missing
 from .scheduler import Scheduler, next_run_time
 from .settings import ScheduleMode, Settings, update_autostart
 from .snapshot_cache import (
@@ -700,6 +700,20 @@ class MainWindow(QMainWindow):
             return
         if operation == "snapshots" and not success:
             self.restore_page.set_loading(False)
+            if is_repo_missing(message):
+                self.restore_page.set_snapshots([])
+                try:
+                    where = self.backend.repo_location()
+                except BackendError:
+                    where = ""
+                hint = f" at {where}" if where else ""
+                self.restore_page.set_notice(
+                    f"No backups found{hint} yet — nothing to restore.\n"
+                    "Run a backup first (Overview page), or check the destination "
+                    "folder on the Storage page."
+                )
+            else:
+                QMessageBox.warning(self, "Packrat Backup", f"Could not list snapshots: {message}")
         elif operation == "ls" and not success:
             snapshot_id = self._ls_snapshot_id
             self._ls_snapshot_id = ""
@@ -981,7 +995,10 @@ class MainWindow(QMainWindow):
                 SkippedFilesDialog(skipped, self).exec()
             return
         if not success:
-            QMessageBox.warning(self, "Packrat Backup", message)
+            # dry-run, snapshots and ls failures get context-specific UI in
+            # _on_operation_finished; don't pop a second generic dialog here.
+            if self.job.last_operation not in ("dry-run", "snapshots", "ls"):
+                QMessageBox.warning(self, "Packrat Backup", message)
         else:
             self.tray.show_message("Packrat Backup", message)
 
